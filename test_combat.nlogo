@@ -1,7 +1,9 @@
 extensions [CogLogo]
 
 breed [humans human]
-humans-own [force vie energie]
+breed [cibles cible]
+humans-own [force vie energie target]
+cibles-own [force vie energie]
 
 to setup
   clear-all
@@ -18,22 +20,96 @@ to setup
     set energie energie-depart
   ]
 
+  create-cibles population [
+    coglogo:init-cognitons
+    set shape "person"
+    set color blue
+    set size 2
+    setxy random-xcor random-ycor
+    set force (random force-max)
+    set vie vie-depart
+    set energie energie-depart
+  ]
+
 end
 
 to go
-  ask turtles [goTurtle]
+  ask humans [goTurtle]
+  ask cibles [goCible]
   tick
   update-plots
 end
 
-;si energie > seuil, envie de combattre, sinon repos
+;;; HUMANS
+;si energie > repos, attaque sinon fuite
 to goTurtle
   coglogo:set-cogniton-value "energie" energie
+  coglogo:set-cogniton-value "repos" (energie-depart - energie)
+  coglogo:set-cogniton-value "force" force
+  run coglogo:choose-next-plan
+  coglogo:report-agent-data
 end
 
-to attack
+
+to attaque
+  set target nobody
+
+  ifelse any? cibles in-radius vision [
+    ifelse one-of cibles-here != nobody [
+      set color red
+      set target one-of cibles-here
+
+      ;;traitement
+      coglogo:activate-cogniton "agressivité"
+      coglogo:feed-back-from-plan "attaque" energie
+
+      let forceCible 0
+      ask target [set forceCible force]
+      coglogo:activate-cogniton "forceCible"
+      coglogo:set-cogniton-value "forceCible" forceCible
+    ] [
+      set color orange
+      face min-one-of cibles [distance myself]
+      fd 0.5
+
+      ;;traitement
+      coglogo:deactivate-cogniton "forceCible"
+    ]
+  ] [
+    set color white
+    wiggle
+  ]
 end
 
+to fuir
+  coglogo:deactivate-cogniton "agressivité"
+  ifelse any? other humans in-radius vision [
+    face min-one-of other humans [distance myself]
+    rt 170 + random 20
+    fd 0.2
+  ]
+  [wiggle]
+end
+
+to gagner
+  set energie energie - 1
+  ask target [ set vie vie - 1 ]
+end
+
+to perdre
+  set energie energie - 1
+  set vie vie - 1
+end
+
+;;; CIBLES
+to goCible
+  coglogo:set-cogniton-value "energie" energie
+  coglogo:set-cogniton-value "repos" (energie-depart - energie)
+  coglogo:set-cogniton-value "force" force
+  run coglogo:choose-next-plan
+  coglogo:report-agent-data
+  wiggle
+end
 
 
 to wiggle
@@ -95,7 +171,7 @@ population
 population
 0
 100
-50.0
+21.0
 1
 1
 NIL
@@ -188,8 +264,8 @@ SLIDER
 vision
 vision
 1
-10
-5.0
+20
+8.5
 0.5
 1
 NIL
