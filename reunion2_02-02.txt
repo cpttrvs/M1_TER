@@ -1,0 +1,34 @@
+TER : Réunion 2 (02/02/18)
+_
+Plan :
+0 - logistique
+1 - nouveau modèle d'intéraction
+2 - répartition des tâches
+3 - objectifs pour la prochaine réunion
+_
+0 - logistique
+réunion+1 : jeudi 8/01, 9h au LIRMM
+lien du git : https://github.com/suroFr/CogLogo/tree/master/Dists (tout y est expliqué)
+sujet ter : http://www.lirmm.fr/~ferber/TER/metaciv_m1.htm
+_
+1 - nouveau modèle d'intéraction
+coglogo gère les motivations d'un agent. le problème est d'abstraire ce modèle à une intéraction entre 2 agents (symétrique ou non) et l'environnement (patch)
+
+idées développées :
+interaction de combat : 
+lister pour l'initiateur et le destinaire tous les "capacitons", présent ou non lors de l'intéraction entre deux agents
+représenter avec le système de Plan les micro-intéractions (ici, enlever 1 point de vie, et non tuer l'adversaire par exemple)
+lister les "variables" de l'environnement pouvant influencer l'intéraction (vent, hauteur, facteur de glissement)
+
+mais, il faudrait pouvoir faire intéragir l'environnement non pas avec la finalité de l'intéraction, mais avec les capacités propres des agents (le vent qui impacte celui à l'arc)
+-> un lien "variable d'environnement" vers "lien d'influence capaciton/plan", avec la possibilité de définir mathématiquement le noeud crée
+_
+2 - répartition des tâches
+Partie extension Java des intéractions
+Arnault / Kiefer: développer une nouvelle extension implémentant le modèle de la partie 1 (interface graphique, "noeud de lien d'influence")
+Partie modèle NetLogo/CogLogo/future extension
+Alexandre / Joseph: implémenter des interactions de civilisation (combat, commerce, etc...) avec Netlogo et Coglogo, puis les modifier en utilisant la future extension
+_
+3 - objectifs pour la prochaine réunion
+commencer à implémenter la future extension, rapporter quels sont les problèmes rencontrés (différence avec l'implémentation de CogLogo, similitudes, etc)
+renforcer le modèle de combat NetLogo/CogLogo en y ajoutant la notion d'intéraction (2 agents, 1 patch)
