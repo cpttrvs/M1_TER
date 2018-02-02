@@ -3,7 +3,7 @@ extensions [CogLogo]
 breed [humans human]
 breed [cibles cible]
 humans-own [force vie energie target]
-cibles-own [force vie energie]
+cibles-own [force vie energie vieTick]
 
 to setup
   clear-all
@@ -29,6 +29,7 @@ to setup
     set force (random force-max)
     set vie vie-depart
     set energie energie-depart
+    set vieTick vie
   ]
 
 end
@@ -43,6 +44,7 @@ end
 ;;; HUMANS
 ;si energie > repos, attaque sinon fuite
 to goTurtle
+  if vie <= 0 [ die ]
   coglogo:set-cogniton-value "energie" energie
   coglogo:set-cogniton-value "repos" (energie-depart - energie)
   coglogo:set-cogniton-value "force" force
@@ -82,6 +84,7 @@ to attaque
 end
 
 to fuir
+  set color yellow
   coglogo:deactivate-cogniton "agressivité"
   ifelse any? other humans in-radius vision [
     face min-one-of other humans [distance myself]
@@ -89,11 +92,15 @@ to fuir
     fd 0.2
   ]
   [wiggle]
+  set energie energie + 1
 end
 
 to gagner
   set energie energie - 1
-  ask target [ set vie vie - 1 ]
+  if target != nobody [
+    ask target [ set vie vie - 1 ]
+  ]
+
 end
 
 to perdre
@@ -103,12 +110,16 @@ end
 
 ;;; CIBLES
 to goCible
+  if vie <= 0 [ die ]
   coglogo:set-cogniton-value "energie" energie
   coglogo:set-cogniton-value "repos" (energie-depart - energie)
   coglogo:set-cogniton-value "force" force
   run coglogo:choose-next-plan
   coglogo:report-agent-data
-  wiggle
+  ifelse vie < vieTick []
+  [wiggle]
+
+  set vieTick vie
 end
 
 
