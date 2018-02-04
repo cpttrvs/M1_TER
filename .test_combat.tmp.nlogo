@@ -233,7 +233,7 @@ force-max
 force-max
 1
 10
-10.0
+5.0
 0.25
 1
 NIL
@@ -282,6 +282,21 @@ vision
 0.5
 1
 NIL
+HORIZONTAL
+
+SLIDER
+23
+399
+195
+432
+seuil
+seuil
+1
+100
+50.0
+1
+1
+%
 HORIZONTAL
 
 @#$#@#$#@
