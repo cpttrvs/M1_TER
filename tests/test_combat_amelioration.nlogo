@@ -3,6 +3,8 @@ extensions [CogLogo]
 breed [humans human]
 humans-own [groupId strength life energy target originalColor ]
 
+patches-own [valueTest]
+
 ;1) j'ai supprimé tout ce qui n'était pas utilisé (schémaCog des cibles et énergie)
 ;2) perdre cause plus de fatigue ce qui incite a fuir quand on perd
 ;3) seul le cogniton forceCible a des liens d'influence sur les plans d'intéraction
@@ -30,7 +32,7 @@ to setup
 
   create-humans population [
     set shape "person"
-    set color green
+    set color red
     set originalColor color
     set size 2
     setxy random-xcor random-ycor
@@ -59,6 +61,10 @@ to setup
     coglogo:set-cogniton-value "interactionOffset" starting-energy
   ]
 
+  ask patches [
+    set valueTest random 10
+    set pcolor scale-color grey (valueTest) 0 40
+  ]
 end
 
 to go
@@ -88,7 +94,7 @@ to attack
   ifelse any? other humans with [groupId != myGroupId] in-radius vision [
     ;; si un ennemi est au contact
     ifelse one-of other humans-here with [groupId != myGroupId] != nobody [
-      set color originalColor + 10
+      ;set color originalColor + 10
       set target one-of other humans-here with [groupId != myGroupId]
 
       coglogo:activate-cogniton "targetStrength"
@@ -294,7 +300,7 @@ vision
 vision
 1
 20
-8.5
+7.0
 0.5
 1
 NIL
