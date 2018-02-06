@@ -87,7 +87,7 @@ to goHumans
   coglogo:set-cogniton-value "knowledge" knowledge
 
   let environment 0
-  ask patch-here [set environment value / 10]
+  ask patch-here [set environment value]
   coglogo:set-cogniton-value "environment" environment
   coglogo:set-cogniton-value "capacity" strength + knowledge * environment
 
@@ -118,7 +118,7 @@ to attack
       coglogo:set-cogniton-value "targetKnowledge" targetKnowledge
 
       let environment 0
-      ask patch-here [set environment value / 10]
+      ask patch-here [set environment value ]
       coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge * environment
     ] [
       ;; sinon s'approcher d'un ennemi
