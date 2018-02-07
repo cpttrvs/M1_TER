@@ -1,9 +1,9 @@
 extensions [CogLogo]
 
 breed [humans human]
-humans-own [groupId strength knowledge life energy target originalColor ]
+humans-own [groupId strength knowledge life energy target originalColor camp ]
 
-patches-own [value]
+patches-own [base environmentType buffValue alteration ]
 
 ;1) j'ai supprimé tout ce qui n'était pas utilisé (schémaCog des cibles et énergie)
 ;2) perdre cause plus de fatigue ce qui incite a fuir quand on perd
@@ -30,11 +30,23 @@ to setup
   reset-ticks
   coglogo:reset-simulation
 
+  ask patches [
+    ;set pcolor scale-color grey (value) 0 40
+    set pcolor black
+    set base 0
+    set environmentType 0
+    set buffValue 0
+  ]
+  initEnvironment
+
+   initBase
+
   create-humans population [
     set shape "person"
     set color red
     set originalColor color
     set size 2
+    set camp (patches with [ base = 1 ])
     setxy random-xcor random-ycor
 
     coglogo:init-cognitons
@@ -52,6 +64,7 @@ to setup
     set color blue
     set originalColor color
     set size 2
+    set camp (patches with [ base = 2 ])
     setxy random-xcor random-ycor
 
     coglogo:init-cognitons
@@ -63,10 +76,6 @@ to setup
     coglogo:set-cogniton-value "interactionOffset" starting-energy
   ]
 
-  ask patches [
-    set value random 10
-    set pcolor scale-color grey (value) 0 40
-  ]
 end
 
 to go
@@ -80,6 +89,8 @@ to goHumans
   if life <= 0 [ die ]
   if energy > starting-energy
   [set energy starting-energy]
+  if life > starting-life
+  [set life starting-life]
 
   coglogo:set-cogniton-value "energy" energy
   coglogo:set-cogniton-value "exhaustion" (starting-energy - energy)
@@ -87,7 +98,7 @@ to goHumans
   coglogo:set-cogniton-value "knowledge" knowledge
 
   let environment 0
-  ask patch-here [set environment value]
+  ask patch-here [set environment buffValue / 15]
   coglogo:set-cogniton-value "environment" environment
   coglogo:set-cogniton-value "capacity" strength + knowledge * environment
 
@@ -118,7 +129,7 @@ to attack
       coglogo:set-cogniton-value "targetKnowledge" targetKnowledge
 
       let environment 0
-      ask patch-here [set environment value ]
+      ask patch-here [set environment buffValue / 10]
       coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge * environment
     ] [
       ;; sinon s'approcher d'un ennemi
@@ -142,14 +153,28 @@ to flee
 
   deactivateTarget
 
-  ifelse any? other humans with [groupId != myGroupId] in-radius vision [
-    face min-one-of other humans [distance myself]
-    rt 170 + random 20
-    fd 0.2
-  ]
-  [wiggle]
+;  ifelse any? other humans with [groupId != myGroupId] in-radius vision [
+;    face min-one-of other humans [distance myself]
+;    rt 170 + random 20
+;    fd 0.2
+;  ]
+;  [wiggle]
+;
+;  set energy energy + 1
 
-  set energy energy + 1
+;  ifelse (patch-here = one-of camp)
+;  [ set energy energy + 1
+;    set life life + 1
+;  ]
+;  [ face one-of camp
+;    fd 1 ]
+
+  ifelse patch-here = one-of camp [
+    set energy energy + 5
+  ] [
+    face one-of camp
+    fd 0.5
+  ]
 end
 
 to win
@@ -161,7 +186,7 @@ to win
 end
 
 to loose
-  set energy energy - 10
+  set energy energy - 5
   set life life - 1
   deactivateTarget
 end
@@ -183,6 +208,53 @@ to wiggle
   rt random 70
   lt random 70
   fd 0.5
+end
+
+; possible values for environmentType :
+; 0 -> standard environment
+; 1 -> beach
+; 2 -> forest
+; 3 -> mountain
+to initEnvironment
+  ask patch random-xcor random-ycor
+  [ ask patches in-radius ((random 7) + 2) [ spreadEnvironment 1 yellow] ]
+
+  ask patch random-xcor random-ycor
+  [ ask patches in-radius ((random 7) + 2) [ spreadEnvironment 2 green] ]
+
+  ask patch random-xcor random-ycor
+  [ ask patches in-radius ((random 7) + 2) [ spreadEnvironment 3 grey] ]
+
+end
+
+to spreadEnvironment [ envType envColor ]
+  if (environmentType = 0)
+  [ set environmentType envType
+    set pcolor envColor
+    ifelse (envType = 1)
+    [ set buffValue buff-give-by-beach ]
+    [ ifelse (envType = 2)
+      [ set buffValue buff-give-by-forest]
+      [ set buffValue buff-give-by-mountain ] ] ]
+end
+
+to initBase
+  ask patch random-xcor random-ycor
+  [ set base 1
+    set pcolor brown ]
+  ask patch random-xcor random-ycor
+  [ set base 2
+    set pcolor orange ]
+end
+
+; possible values for alteration
+; 0 -> no modification
+; 1 -> trench
+; 2 -> //TODO
+;; idea : Faire des mofication de terrain de taille supérieur à 1 patch -> ex : tranché = 3 cases face à l'agent
+to modifyEnvironment [ modifType ]
+  set alteration modifType
+; set pcolor
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -238,7 +310,7 @@ population
 population
 0
 100
-14.0
+13.0
 1
 1
 NIL
@@ -295,9 +367,9 @@ HORIZONTAL
 
 SLIDER
 10
-310
+255
 200
-343
+288
 starting-life
 starting-life
 1
@@ -310,9 +382,9 @@ HORIZONTAL
 
 SLIDER
 10
-345
+290
 200
-378
+323
 starting-energy
 starting-energy
 1
@@ -325,14 +397,14 @@ HORIZONTAL
 
 SLIDER
 10
-415
+325
 200
-448
+358
 vision
 vision
 1
 20
-10.5
+5.5
 0.5
 1
 NIL
@@ -391,15 +463,45 @@ HORIZONTAL
 
 SLIDER
 10
-215
-200
-248
-max-environment
-max-environment
+360
+182
+393
+buff-give-by-beach
+buff-give-by-beach
+0
+10
+1.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+10
+395
+182
+428
+buff-give-by-forest
+buff-give-by-forest
+0
+10
+2.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+10
+430
+182
+463
+buff-give-by-mountain
+buff-give-by-mountain
 0
 10
 5.0
-0.25
+1
 1
 NIL
 HORIZONTAL
