@@ -1,29 +1,17 @@
 extensions [CogLogo]
 
 breed [humans human]
-humans-own [groupId strength knowledge life energy target originalColor ]
+humans-own [groupId strength knowledge life energy parry hasParried? target originalColor d:strength ]
 
 patches-own [value]
 
-;1) j'ai supprimé tout ce qui n'était pas utilisé (schémaCog des cibles et énergie)
-;2) perdre cause plus de fatigue ce qui incite a fuir quand on perd
-;3) seul le cogniton forceCible a des liens d'influence sur les plans d'intéraction
-;force cible est désactivé à la fin de chaque interaction , ce qui force a reprendre une décision après le résultat
-;4) c'est interactionOffset qui monte les plans interaction au dessus du choix
-; il est set à la energie-depart (ce qui le met juste au dessus d'attaque dans le meilleur des cas) et reste statique
-;5) l'énergie est régulée pour ne jamais dépasser energie-depart
-;6) le décision maker est biaisé stochastique avec un bias de 5 (fort)
+globals [debugValue]
 
-; ps : j'ai eu un run ou les cibles on gagné ... héhéhé
-
-;propositions :
-;- faire 2 camps avec 2 bases.
-;- les 2 camps on le même schéma cog , un attibut camps pour les différencier
-;- prendre en compte le terrain
-;- role de construction pour modifier le terrain et le rendre + favorable (tranchées etc)
-;- plans d'attaquer mais aussi de se retrancher pour bloquer l'énnemi
-;- rentrer a la base pour se réparer (incovénient de lacher le terrain)
-;- détruire la base énemie pour gagner (peu importe si ca n'arrive jamais , c'est juste un objectif)
+;; système de combat avec :
+;; - gestion de l'environnement (patch) simplifié
+;; - parade
+;;   - "parry" est le % de chance de parer une attaque
+;;   - "hasParried?" passe à vrai si l'agent perd l'intéraction, et double sa force pour la prochaine intéraction (avantage de la riposte)
 
 to setup
   clear-all
@@ -42,8 +30,17 @@ to setup
     set knowledge (random max-knowledge) + 1
     set life starting-life
     set energy starting-energy
+
+    let tempParry random variance-parry-chance * 2
+    ifelse tempParry > variance-parry-chance
+    [ set parry parry-chance + tempParry ]
+    [ set parry parry-chance - tempParry ]
+
     set groupId 1
     coglogo:set-cogniton-value "interactionOffset" starting-energy
+
+    ;;debug
+    set d:strength strength
   ]
 
 
@@ -59,12 +56,21 @@ to setup
     set knowledge (random max-knowledge) + 1
     set life starting-life
     set energy starting-energy
+
+    let tempParry random variance-parry-chance * 2
+    ifelse tempParry > variance-parry-chance
+    [ set parry parry-chance + tempParry ]
+    [ set parry parry-chance - tempParry ]
+
     set groupId 2
     coglogo:set-cogniton-value "interactionOffset" starting-energy
+
+    ;;debug
+    set d:strength strength
   ]
 
   ask patches [
-    set value random 10
+    set value random max-environment
     set pcolor scale-color grey (value) 0 40
   ]
 end
@@ -83,61 +89,32 @@ to goHumans
 
   coglogo:set-cogniton-value "energy" energy
   coglogo:set-cogniton-value "exhaustion" (starting-energy - energy)
-  coglogo:set-cogniton-value "strength" strength
-  coglogo:set-cogniton-value "knowledge" knowledge
 
   let environment 0
   ask patch-here [set environment value / 10]
   coglogo:set-cogniton-value "environment" environment
   coglogo:set-cogniton-value "capacity" strength + knowledge * environment
 
+  ;;techniquement, le tick après une parade, si l'intéraction retour n'a pas été effectué, on annule le bonus
+  if hasParried? = true [
+    set hasParried? false
+    set strength strength / 2
+  ]
+
   run coglogo:choose-next-plan
   coglogo:report-agent-data
+
+  ;;debug
+  if strength > d:strength * 2
+  [ set debugValue debugValue + 1 ]
 end
-
-;;;;;;;;;;;;;;culturon
-to create-group
-  coglogo:leave-group "mob"
-  coglogo:create-and-join-group "mob" "leader"
-  coglogo:set-participation "mob" 4.0
-  set color white
-end
-
-to look-for-group
-  let myGroupId groupId
-  ifelse any? other humans with [groupId = myGroupId] in-radius vision
-  [ let id -1.0
-    ask min-one-of other humans with [groupId = myGroupId] [distance myself] [set id coglogo:get-group-role-id "mob" "leader"]
-    if id != -1
-    [coglogo:leave-group "mob"
-     coglogo:join-group "mob" "follower" id
-     coglogo:set-participation "mob" 4.0 ]]
-  [ wiggle ]
-end
-
-to lead-mob
-  set size 3
-  wiggle
-end
-
-to follow-leader
-  ifelse target != nobody
-  [let targetId -1.0
-    ask target [set targetId coglogo:get-group-role-id "mob" "leader"]
-    ifelse targetId = -1.0
-    [coglogo:leave-group "herd"]
-    [face target
-     fd 0.5]]
-  [coglogo:leave-group "herd"]
-end
-
-
 
 ;;;;;;;;;;;;;;combat
 
 ;;si l'energie est supérieure à la fatigue
 to attack
   set target nobody
+  set color originalColor
   let myGroupId groupId
 
   ifelse any? other humans with [groupId != myGroupId] in-radius vision [
@@ -154,12 +131,17 @@ to attack
         set targetStrength strength
         set targetKnowledge knowledge
       ]
-      coglogo:set-cogniton-value "targetStrength" targetStrength
-      coglogo:set-cogniton-value "targetKnowledge" targetKnowledge
 
       let environment 0
       ask patch-here [set environment value / 10]
       coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge * environment
+
+      ask target [
+        if hasParried? = true [
+          set strength strength / 2
+          set hasParried? false
+        ]
+      ]
     ] [
       ;; sinon s'approcher d'un ennemi
       face min-one-of other humans with [groupId != myGroupId] [distance myself]
@@ -182,6 +164,7 @@ to flee
 
   deactivateTarget
 
+  ;;s'enfuir
   ifelse any? other humans with [groupId != myGroupId] in-radius vision [
     face min-one-of other humans [distance myself]
     rt 170 + random 20
@@ -189,7 +172,20 @@ to flee
   ]
   [wiggle]
 
+  ;;la fuite fait perdre l'avantage de la parade
+  if hasParried? = true [
+    set hasParried? false
+    set strength strength / 2
+  ]
+
   set energy energy + 1
+
+  if life < starting-life
+  [ set life life + 0.25 ]
+  ;;tant que l'energie n'est pas au maximum à nouveau: s'enfuir
+  ifelse (energy < starting-energy)
+  [ coglogo:deactivate-cogniton "energy" ]
+  [ coglogo:activate-cogniton "energy" ]
 end
 
 to win
@@ -200,21 +196,29 @@ to win
   deactivateTarget
 end
 
+;;si l'attaque est parée, pas de perte de vie et un bonus pour la prochaine intéraction
 to loose
+  set energy energy - 1
+
+  let parry? random 100
+  ifelse parry? < parry [
+    set hasParried? true
+    set color white
+    set strength strength * 2 ;; la force est doublée pour la prochaine intéraction
+  ] [
+    set hasParried? false
+    set life life - 1
+  ]
   deactivateTarget
 end
 
 ;;utilitaires
 to activateTarget
   coglogo:activate-cogniton "targetCapacity"
-  coglogo:activate-cogniton "targetStrength"
-  coglogo:activate-cogniton "targetKnowledge"
 end
 
 to deactivateTarget
   coglogo:deactivate-cogniton "targetCapacity"
-  coglogo:deactivate-cogniton "targetStrength"
-  coglogo:deactivate-cogniton "targetKnowledge"
 end
 
 to wiggle
@@ -274,9 +278,9 @@ SLIDER
 133
 population
 population
-0
+1
 100
-14.0
+5.0
 1
 1
 NIL
@@ -332,10 +336,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-10
-310
-200
-343
+5
+285
+195
+318
 starting-life
 starting-life
 1
@@ -347,25 +351,25 @@ NIL
 HORIZONTAL
 
 SLIDER
-10
-345
-200
-378
+5
+320
+195
+353
 starting-energy
 starting-energy
 1
 100
-50.0
+41.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-10
-415
-200
-448
+5
+365
+195
+398
 vision
 vision
 1
@@ -398,7 +402,7 @@ PLOT
 170
 860
 320
-plot 1
+number of agents
 NIL
 NIL
 0.0
@@ -428,19 +432,60 @@ NIL
 HORIZONTAL
 
 SLIDER
-10
-215
-200
-248
+5
+410
+195
+443
 max-environment
 max-environment
 0
 10
-5.0
+4.75
 0.25
 1
 NIL
 HORIZONTAL
+
+SLIDER
+10
+210
+200
+243
+parry-chance
+parry-chance
+0
+100
+19.0
+1
+1
+%
+HORIZONTAL
+
+SLIDER
+25
+245
+200
+278
+variance-parry-chance
+variance-parry-chance
+0
+20
+10.0
+1
+1
+NIL
+HORIZONTAL
+
+MONITOR
+720
+370
+797
+415
+NIL
+debugValue
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?

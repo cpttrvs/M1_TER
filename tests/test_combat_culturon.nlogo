@@ -1,129 +1,111 @@
+; An example of use of the Culturons, the Agent-Group-Role system  to organise leader-followers groups
+; groups emerge by the use of the stochastic decision maker (cognitive scheme settings) which gives the
+; plan "create-group" a small chance to be selected
+
 extensions [CogLogo]
+globals [timeGrowth maxGrassHeight minReproduceEnergy]
 
-breed [humans human]
-humans-own [groupId strength knowledge life energy target originalColor ]
+breed [cows cow]
 
-patches-own [value]
-
-;1) j'ai supprimé tout ce qui n'était pas utilisé (schémaCog des cibles et énergie)
-;2) perdre cause plus de fatigue ce qui incite a fuir quand on perd
-;3) seul le cogniton forceCible a des liens d'influence sur les plans d'intéraction
-;force cible est désactivé à la fin de chaque interaction , ce qui force a reprendre une décision après le résultat
-;4) c'est interactionOffset qui monte les plans interaction au dessus du choix
-; il est set à la energie-depart (ce qui le met juste au dessus d'attaque dans le meilleur des cas) et reste statique
-;5) l'énergie est régulée pour ne jamais dépasser energie-depart
-;6) le décision maker est biaisé stochastique avec un bias de 5 (fort)
-
-; ps : j'ai eu un run ou les cibles on gagné ... héhéhé
-
-;propositions :
-;- faire 2 camps avec 2 bases.
-;- les 2 camps on le même schéma cog , un attibut camps pour les différencier
-;- prendre en compte le terrain
-;- role de construction pour modifier le terrain et le rendre + favorable (tranchées etc)
-;- plans d'attaquer mais aussi de se retrancher pour bloquer l'énnemi
-;- rentrer a la base pour se réparer (incovénient de lacher le terrain)
-;- détruire la base énemie pour gagner (peu importe si ca n'arrive jamais , c'est juste un objectif)
+cows-own [energy target]
+patches-own [time grass]
 
 to setup
   clear-all
   reset-ticks
+  set timeGrowth 10
+  set maxGrassHeight 130
+  set minReproduceEnergy 30
   coglogo:reset-simulation
 
-  create-humans population [
-    set shape "person"
-    set color red
-    set originalColor color
-    set size 2
-    setxy random-xcor random-ycor
+  create-cows nCows
+  [ coglogo:init-cognitons
+    set energy 500 + random 250
+    set target nobody
+    set shape "cow"
+    set color white
+    set size 3
+    setxy random-xcor random-ycor]
 
-    coglogo:init-cognitons
-    set strength (random max-strength) + 1
-    set knowledge (random max-knowledge) + 1
-    set life starting-life
-    set energy starting-energy
-    set groupId 1
-    coglogo:set-cogniton-value "interactionOffset" starting-energy
-  ]
-
-
-  create-humans population [
-    set shape "person"
-    set color blue
-    set originalColor color
-    set size 2
-    setxy random-xcor random-ycor
-
-    coglogo:init-cognitons
-    set strength (random max-strength) + 1
-    set knowledge (random max-knowledge) + 1
-    set life starting-life
-    set energy starting-energy
-    set groupId 2
-    coglogo:set-cogniton-value "interactionOffset" starting-energy
-  ]
-
-  ask patches [
-    set value random 10
-    set pcolor scale-color grey (value) 0 40
+  ask patches
+  [ set grass (random (maxGrassHeight - 100)) + 100
+    set time random timeGrowth
+    color-patches
   ]
 end
 
 to go
-  ask humans [goHumans]
+  ask patches [go-patches color-patches]
+  ask cows [go-cow]
   tick
-  update-plots
 end
 
-;;; HUMANS
-to goHumans
-  if life <= 0 [ die ]
-  if energy > starting-energy
-  [set energy starting-energy]
+;;;;;; GENERAL
+to wiggle
+  rt random 50
+  lt random 50
+  fd 0.4
+end
 
+to wiggle-leader
+  rt random 5
+  lt random 5
+  fd 0.3
+end
+
+;;;;;;;;; COWS
+to cow-eat
+  ifelse [grass] of patch-here > 0
+  [ifelse [grass] of patch-here - cow-harvest > 0
+  [ ask patch-here [set grass grass - cow-harvest]
+    set energy energy + cow-gain]
+  [ set energy energy + (cow-gain * ([grass] of patch-here / cow-harvest))
+      ask patch-here [set grass 0]]]
+  [wiggle]
+  ;set color white
+end
+
+to go-cow
+  set energy energy - cow-energy-consumption
+  if energy <= 0 [die]
   coglogo:set-cogniton-value "energy" energy
-  coglogo:set-cogniton-value "exhaustion" (starting-energy - energy)
-  coglogo:set-cogniton-value "strength" strength
-  coglogo:set-cogniton-value "knowledge" knowledge
-
-  let environment 0
-  ask patch-here [set environment value / 10]
-  coglogo:set-cogniton-value "environment" environment
-  coglogo:set-cogniton-value "capacity" strength + knowledge * environment
-
+  show-id
   run coglogo:choose-next-plan
   coglogo:report-agent-data
 end
 
-;;;;;;;;;;;;;;culturon
-to create-group
-  coglogo:leave-group "mob"
-  coglogo:create-and-join-group "mob" "leader"
-  coglogo:set-participation "mob" 4.0
-  set color white
-end
-
 to look-for-group
-  let myGroupId groupId
-  ifelse any? other humans with [groupId = myGroupId] in-radius vision
+  ifelse any? other cows in-radius (cow-detect-radius)
   [ let id -1.0
-    ask min-one-of other humans with [groupId = myGroupId] [distance myself] [set id coglogo:get-group-role-id "mob" "leader"]
+    ask min-one-of other cows [distance myself] [set id coglogo:get-group-role-id "herd" "leader"]
     if id != -1
-    [coglogo:leave-group "mob"
-     coglogo:join-group "mob" "follower" id
-     coglogo:set-participation "mob" 4.0 ]]
-  [ wiggle ]
+    [coglogo:leave-group "herd"
+     coglogo:join-group "herd" "follower" id
+     coglogo:set-participation "herd" 4.0
+     set target min-one-of other cows [distance myself]
+     set color blue ]]
+  [wiggle
+   set color sky]
 end
 
-to lead-mob
-  set size 3
-  wiggle
+to create-group
+  coglogo:leave-group "herd"
+  coglogo:create-and-join-group "herd" "leader"
+  coglogo:set-participation "herd" 4.0
+  set target nobody
+  set color pink
+end
+
+to lead-herd
+  set color red
+  wiggle-leader
 end
 
 to follow-leader
+  set color blue
   ifelse target != nobody
   [let targetId -1.0
-    ask target [set targetId coglogo:get-group-role-id "mob" "leader"]
+    ask target [set targetId coglogo:get-group-role-id "herd" "leader"]
     ifelse targetId = -1.0
     [coglogo:leave-group "herd"]
     [face target
@@ -131,108 +113,33 @@ to follow-leader
   [coglogo:leave-group "herd"]
 end
 
-
-
-;;;;;;;;;;;;;;combat
-
-;;si l'energie est supérieure à la fatigue
-to attack
-  set target nobody
-  let myGroupId groupId
-
-  ifelse any? other humans with [groupId != myGroupId] in-radius vision [
-    ;; si un ennemi est au contact
-    ifelse one-of other humans-here with [groupId != myGroupId] != nobody [
-      set color originalColor
-      set target one-of other humans-here with [groupId != myGroupId]
-
-      activateTarget
-
-      let targetStrength 0
-      let targetKnowledge 0
-      ask target [
-        set targetStrength strength
-        set targetKnowledge knowledge
-      ]
-      coglogo:set-cogniton-value "targetStrength" targetStrength
-      coglogo:set-cogniton-value "targetKnowledge" targetKnowledge
-
-      let environment 0
-      ask patch-here [set environment value / 10]
-      coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge * environment
-    ] [
-      ;; sinon s'approcher d'un ennemi
-      face min-one-of other humans with [groupId != myGroupId] [distance myself]
-      fd 0.5
-
-      deactivateTarget
-    ]
-  ] [
-    ;; si aucun ennemi est à portée
-    set color originalColor
-    deactivateTarget
-    wiggle
-  ]
+to show-id
+  set label who
 end
 
-;;si la fatigue est supérieure à l'énergie
-to flee
-  set color originalColor - 20
-  let myGroupId groupId
-
-  deactivateTarget
-
-  ifelse any? other humans with [groupId != myGroupId] in-radius vision [
-    face min-one-of other humans [distance myself]
-    rt 170 + random 20
-    fd 0.2
-  ]
-  [wiggle]
-
-  set energy energy + 1
+;;;;;;;; PATCHES
+to go-patches
+  set time  time + 1
+  if time > timeGrowth
+  [set time 0
+    if grass < maxGrassHeight[
+      set grass grass + 1]]
 end
 
-to win
-  set energy energy - 1
-  if target != nobody [
-    ask target [ set life life - 1 ]
-  ]
-  deactivateTarget
-end
-
-to loose
-  deactivateTarget
-end
-
-;;utilitaires
-to activateTarget
-  coglogo:activate-cogniton "targetCapacity"
-  coglogo:activate-cogniton "targetStrength"
-  coglogo:activate-cogniton "targetKnowledge"
-end
-
-to deactivateTarget
-  coglogo:deactivate-cogniton "targetCapacity"
-  coglogo:deactivate-cogniton "targetStrength"
-  coglogo:deactivate-cogniton "targetKnowledge"
-end
-
-to wiggle
-  rt random 70
-  lt random 70
-  fd 0.5
+to color-patches
+  set pcolor rgb 0 grass 0
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-647
-448
+724
+525
 -1
 -1
-13.0
+8.3
 1
-10
+15
 1
 1
 1
@@ -240,21 +147,55 @@ GRAPHICS-WINDOW
 1
 1
 1
--16
-16
--16
-16
+-30
+30
+-30
+30
 1
 1
 1
 ticks
-30.0
+15.0
 
 BUTTON
-135
-60
-200
-93
+0
+10
+205
+43
+edit cognitons
+coglogo:openEditor
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+0
+45
+90
+78
+NIL
+go\n
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+120
+45
+205
+78
 NIL
 setup
 NIL
@@ -268,137 +209,86 @@ NIL
 1
 
 SLIDER
-10
-100
-200
-133
-population
-population
 0
-100
-14.0
-1
-1
-NIL
-HORIZONTAL
-
-BUTTON
-5
-60
-68
-93
-NIL
-go
-T
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-5
-10
-201
-53
-NIL
-coglogo:openEditor
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-SLIDER
-10
-135
-200
-168
-max-strength
-max-strength
-1
-10
-10.0
-0.25
-1
-NIL
-HORIZONTAL
-
-SLIDER
-10
-310
-200
-343
-starting-life
-starting-life
-1
+85
+205
+118
+nCows
+nCows
+0
 50
-15.0
+16.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
+0
+205
+205
+238
+cow-detect-radius
+cow-detect-radius
+0
 10
-345
-200
-378
-starting-energy
-starting-energy
+7.3
+.1
 1
+NIL
+HORIZONTAL
+
+SLIDER
+0
+240
+205
+273
+cow-energy-consumption
+cow-energy-consumption
+0
+1
+0.76
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+0
+275
+205
+308
+cow-harvest
+cow-harvest
+40
 100
-50.0
+77.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-10
-415
-200
-448
-vision
-vision
-1
+0
+310
+205
+343
+cow-gain
+cow-gain
+0.1
 20
-10.5
-0.5
+6.2
+0.1
 1
 NIL
 HORIZONTAL
-
-BUTTON
-70
-60
-134
-93
-step
-go
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
 
 PLOT
-660
-170
-860
-320
-plot 1
+725
+10
+965
+305
+cows
 NIL
 NIL
 0.0
@@ -409,43 +299,31 @@ true
 false
 "" ""
 PENS
-"humans1" 1.0 0 -2674135 true "" "plot count humans with [groupId = 1]"
-"humans2" 1.0 0 -13345367 true "" "plot count humans with [groupId = 2]"
+"default" 1.0 0 -16777216 true "" "plot count cows"
 
-SLIDER
-10
-170
-200
-203
-max-knowledge
-max-knowledge
-0
-10
-5.0
-0.25
-1
+PLOT
+725
+305
+965
+545
+leaders
 NIL
-HORIZONTAL
-
-SLIDER
-10
-215
-200
-248
-max-environment
-max-environment
-0
-10
-5.0
-0.25
-1
 NIL
-HORIZONTAL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot count cows with [coglogo:get-group-role-id \"herd\" \"leader\" >= 0]"
 
 @#$#@#$#@
 ## WHAT IS IT?
 
-(a general understanding of what the model is trying to show or explain)
+An example of use of the Culturons, the Agent-Group-Role system  to organise leader-followers groups.
+Groups emerge by the use of the stochastic decision maker (cognitive scheme settings) which gives the plan "create-group" a small chance to be selected
 
 ## HOW IT WORKS
 

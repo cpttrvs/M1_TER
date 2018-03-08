@@ -1,0 +1,1110 @@
+;;; WARLOGO
+;;;
+;;; AUTEURS : 
+;;; - YOHAN TEXIER
+;;; - DIMITRI VARET
+
+;;; EQUIPE 18
+
+
+
+to proLISP_reverse-heading [ the-heading ]
+  ifelse the-heading > 180
+  [ set the-heading the-heading - 180 ]
+  [ set the-heading the-heading + 180 ]
+  set-heading the-heading
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; ROCKET-LAUNCHER BEHAVIOR ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; ROCKET-LAUNCHER BEHAVIOR ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; ROCKET-LAUNCHER BEHAVIOR ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report rocket-launcher-t1-action
+  
+  if ctask = "initial-state" [set ctask "proLISP_search-enemy"]
+  let ctask-old ctask
+  
+  let mybases percepts with [ is-my-friend? self and is-base? self ]
+  let colliding-base mybases with [ is-colliding? myself ]
+  
+  
+  if (blocked? and hitting-north-wall? self) or (blocked? and hitting-south-wall? self) or (blocked? and hitting-east-wall? self) or (blocked? and hitting-west-wall? self)
+  [ set-random-heading ] 
+  
+  
+  ifelse colliding-base != nobody [
+    if blocked? and member? "proLISP_search-enemy" ctask-old[
+      set-heading get-heading + 90
+      set ctask word "proLISP_move-blocked " (list 1)
+      report "move"
+    ]
+    
+    if blocked? and member? "proLISP_target-attack" ctask-old[
+      set-heading get-heading + 90
+      set ctask word "proLISP_move-blocked " (list 2)
+      report "move"
+    ]
+    
+    if blocked? and member? "proLISP_defence-attack" ctask-old[
+      set-heading get-heading + 90
+      set ctask word "proLISP_move-blocked " (list 3)
+      report "move"
+    ]
+    
+    if blocked? and member? "proLISP_prepare-long-attack" ctask-old[
+      set-heading get-heading + 90
+      let arg last ctask-old
+      set ctask word "proLISP_move-blocked " (list 4 arg)
+      report "move"
+    ]
+  ][ if blocked? [set-random-heading] ]
+  
+  
+  if energy < 100 and not member? "proLISP_search-food" ctask [ 
+    set-heading min-one-of get-bases [distance myself] 
+  set ctask "proLISP_search-food" 
+  ]  
+  
+  set label (word (word who "   ") energy)
+  
+  let r runresult ctask  
+  report r
+  
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;       MOVE-BLOCKED       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report proLISP_move-blocked [ctask-old]
+  if first ctask-old = 1 [ set ctask "proLISP_search-enemy" ]
+  if first ctask-old = 2 [ set ctask word "proLISP_target-attack " (random 5)]
+  if first ctask-old = 3 [ set ctask "proLISP_defence-attack" ]
+  if first ctask-old = 4 [ set ctask word "proLISP_prepare-long-attack " (item 1 ctask-old)  ]
+  
+  let enemy-RL percepts with [ not is-my-friend? myself and is-rocket-launcher? self ]
+  
+  if any? enemy-RL [
+  
+  let target min-one-of enemy-RL [distance myself]
+  
+  if (target != nobody) [
+    set-heading target
+    set ctask word "proLISP_target-attack " (random 5)
+    report list "launch-rocket" towards target
+  ]
+  
+  ]
+
+  set-heading get-heading - 90
+
+  report "move"
+
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;       SEARCH-FOOD        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report proLISP_search-food
+  if energy > 2 * rocket-damage [ set ctask "proLISP_search-enemy" report "move" ]
+  if energy <= 10 * rocket-damage [ if not empty-bag? [ report "eat" ] ]
+  let spotted-food percepts with [is-food? self]
+  let hit-food spotted-food with [is-colliding? myself]  
+  if any? hit-food [
+    ifelse empty-bag?[
+      report list "take" one-of hit-food
+    ][
+      report list "take" (one-of hit-food)
+    ]
+  ] 
+  if any? spotted-food [ set-heading min-one-of spotted-food [distance myself] report "move" ]
+  report "move"
+  
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;       SEARCH-ENEMY       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report proLISP_search-enemy
+  proLISP_update-msg
+  if member? "proLISP_dodge" ctask [ set ctask "proLISP_search-enemy" report "move" ]
+  
+  if not full-bag? [
+  let spotted-food min-one-of percepts with [is-food? self][distance myself]
+  let hit-food percepts with [is-food? self and is-colliding? myself]   
+  if any? hit-food [
+      report list "take" one-of hit-food
+  ] 
+  if spotted-food != nobody [
+    if distance spotted-food < 6 [
+    set-heading spotted-food report "move" 
+    ]
+  ]
+  ]
+  
+  ;;;2 
+  if energy <= 10 * rocket-damage [ if not empty-bag? [report "eat"] ] 
+  
+  ;;;3 
+  if (get-rocket-number = 0 and get-energy self > rocket-cost) [report "build-rocket"]
+    
+  ;;;4
+  let target min-one-of percepts with [not is-rocket? self and not is-food? self and not is-explorer? self and not is-my-friend? myself] [get-energy self];get-energy [a] Renvoie le taux d’énergie de l’agent a.
+  if (target != nobody and get-rocket-number > 0) [
+    set-heading target
+    ifelse energy <= 4 * rocket-damage  
+    [ set ctask "proLISP_defence-attack" ]
+    [ set ctask word "proLISP_target-attack " ( random 4 ) ]
+    report list "launch-rocket" towards target
+  ]
+  
+  ;;;5 
+  broadcast-message other get-rocket-launchers with [not is-colliding? myself] "proLISP_target-attack?" []
+
+  if exist-beliefs-of-type "proLISP_enemy-base-spotted" [
+    let bel first beliefs-of-type "proLISP_enemy-base-spotted"
+    ;execute-intentions
+  ]
+
+  ;;;6
+  report "move"
+  
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;       TARGET-ATTAK       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report proLISP_target-attack [r-time]
+  
+  proLISP_update-msg
+  
+  if member? "proLISP_dodge" ctask [ set ctask word "proLISP_target-attack " (random 5) report "move" ]
+  
+  let ticks-back-move 9 ;doit être toujours inferieur a 10, pour la fonction "move-blocked"
+  
+  if not full-bag? [
+    let spotted-food min-one-of percepts with [is-food? self][distance myself]
+    let hit-food percepts with [is-food? self and is-colliding? myself]   
+    if any? hit-food [
+      report list "take" one-of hit-food
+    ] 
+    if spotted-food != nobody [
+      if distance spotted-food < 6 [
+        set-heading spotted-food report "move" 
+      ]
+    ]
+  ]
+  
+  ;;;2
+  let target min-one-of percepts with [not is-rocket? self and not is-food? self and not is-explorer? self and is-my-enemy? myself] [get-energy self]
+  
+  if energy <= 10 * rocket-damage [ if not empty-bag? [ report "eat" ] ]
+  if energy <= 4 * rocket-damage  
+  [ 
+    
+    set-heading target
+    proLISP_reverse-heading get-heading
+    
+    set ctask word "proLISP_prepare-long-attack " ticks-back-move
+    report "move"
+  ]
+  
+  ;;;3
+  if (get-rocket-number = 0 and get-energy self > rocket-cost) [report "build-rocket"]
+  
+  ;;;4
+  if (target != nobody and get-rocket-number > 0) [
+    if r-time < 1 [ 
+      
+      set-heading target
+      if not is-base? target [
+        set-heading get-heading + 90
+        
+        
+        set r-time random 4
+        set ctask word "proLISP_target-attack " (r-time - 1)
+        report "move"
+      ]
+    ]
+    set-heading target
+    proLISP_update-msg
+    set ctask word "proLISP_target-attack " (r-time - 1)
+    report list "launch-rocket" towards target
+  ]  
+  
+  ;;;5
+  if not blocked?[
+    broadcast-message other get-rocket-launchers "target-attack?" []
+  ]
+  
+  ;;;5
+  set ctask "proLISP_search-enemy"
+  report "move"
+
+end
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   PREPARE-LONG-ATTACK    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report proLISP_prepare-long-attack[ticks-back-move]
+  
+  proLISP_update-msg
+  
+  if any? percepts with [is-my-friend? myself and is-base? self] [ set ctask "proLISP_search-enemy" report "move" ]
+  
+  if ticks-back-move < 5
+  [
+    proLISP_reverse-heading get-heading 
+    broadcast-message other get-rocket-launchers "proLISP_warning-shot" get-heading
+  ]
+  
+  if ticks-back-move < 1 [
+    
+    let target min-one-of percepts with [not is-rocket? self and not is-food? self and not is-explorer? self and is-my-enemy? myself] [get-energy self]
+    ifelse (target != nobody and get-rocket-number > 0) [
+      set-heading target
+      set ctask word "proLISP_prepare-long-attack " 2
+      ;report list "launch-rocket" towards target
+      report "move"
+    ]  
+    [
+      
+      
+      set ctask word "proLISP_waiting-shot-order " 30 
+      ;;;1 
+      let hit-food-RL percepts with [is-food? self and is-colliding? myself]
+      if any? hit-food-RL and not full-bag? [report list "take" one-of hit-food-RL]
+      ;;;2
+      if energy <= 10 * rocket-damage [ if not empty-bag? [report "eat"] ] 
+      ;;;3
+      if (get-rocket-number = 0 and get-energy self > rocket-cost) [report "build-rocket"]
+      ;;;4
+      report "idle"
+    ]
+    
+    
+    
+  ]
+  
+  ;;; SINON RECURSION, JE CONTINU A BACK MOVE
+  set ctask word "proLISP_prepare-long-attack " (ticks-back-move - 1)  
+  
+  ;;;1 : JE TAKE FOOD SI POSSIBLE
+  let hit-food-RL percepts with [is-food? self and is-colliding? myself]
+  if any? hit-food-RL and not full-bag? [report list "take" one-of hit-food-RL]
+  
+  ;;;2 : JE EAT SI LOW LIFE AND BAG NOT EMPTY
+  if energy <= 10 * rocket-damage [ if not empty-bag? [report "eat"] ] 
+  
+  ;;;3 : JE RELOADING SI ZERO ROCKET
+  if (get-rocket-number = 0 and get-energy self > rocket-cost) [report "build-rocket"]
+  
+  ;;;4
+  report "move"
+  
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   WAITING-SHOT-ORDER     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report proLISP_waiting-shot-order[time]
+  
+  proLISP_update-msg 
+  
+  if member? "proLISP_long-attack-locked" ctask [ report "idle" ]
+  if member? "proLISP_dodge" ctask [set ctask word "proLISP_waiting-shot-order " 30 report "move" ]
+  
+  if not full-bag? [
+    let spotted-food min-one-of percepts with [is-food? self][distance myself]
+    let hit-food percepts with [is-food? self and is-colliding? myself]   
+    if any? hit-food [
+      report list "take" one-of hit-food
+    ] 
+    if spotted-food != nobody [
+      if distance spotted-food < 6 [
+        set-heading spotted-food report "move" 
+      ]
+    ]
+  ]
+  
+  set time time - 1
+  if time < 1 [ set ctask "proLISP_search-enemy" report "move"]
+  
+  ;;;00 : SI EXIST TARGET ENEMY, JE VISE, JE LAUNCH ROCKET
+  let target min-one-of percepts with [not is-rocket? self and not is-food? self and not is-explorer? self and is-my-enemy? myself] [get-energy self]
+  if (target != nobody and get-rocket-number > 0) [
+    set-heading target
+    set ctask "proLISP_defence-attack"
+    report list "launch-rocket" towards target
+  ]  
+  
+  ;; SI PAS DE TARGET JE REGARDE MES MESSAGES
+  proLISP_update-msg
+  
+  ;;;0 : SI PAS DE MSG, DEMANDE DUNE TARGET POSSIBLE
+  let myRLs other get-rocket-launchers
+  broadcast-message myRLs "proLISP_ask-target-order" []
+  
+  ;;;2
+  if energy <= 10 * rocket-damage [ if not empty-bag? [report "eat"] ] 
+  ;;;3
+  if (get-rocket-number = 0 and get-energy self > rocket-cost) [report "build-rocket"]
+  
+  
+  ;;4
+  if exist-beliefs-of-type "proLISP_enemy-base-spotted" [
+    let bel first beliefs-of-type "proLISP_enemy-base-spotted"
+    ;execute-intentions
+  ]
+  
+  
+  
+  ifelse any? percepts with [ is-my-friend? myself and is-base? self ]
+  [
+    set ctask "proLISP_search-enemy"
+    let base min-one-of percepts with [ is-my-friend? myself and is-base? self ][distance myself]
+    set-heading base
+    proLISP_reverse-heading get-heading
+    report "move" 
+  ]
+  [ 
+    ifelse (get-rocket-number = 0 and get-energy self > rocket-cost) 
+    [report "build-rocket"]
+    [
+      set ctask word "proLISP_waiting-shot-order " time
+      report "idle" 
+    ]
+  ]
+  
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   LONG-ATTACK-LOCKED     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report proLISP_long-attack-locked [val]
+  
+  proLISP_update-msg 
+  
+  if member? "proLISP_dodge" ctask [ set ctask word "proLISP_waiting-shot-order " 30 report "move" ]
+  if member? "proLISP_wait-launch" ctask [ set ctask word "proLISP_long-attack-locked " (list first val) report "idle" ]
+  
+  
+  broadcast-message other get-rocket-launchers "proLISP_warning-shot" get-heading
+  
+  ;;;1 
+  let hit-food-RL percepts with [is-food? self and is-colliding? myself]
+  if any? hit-food-RL and not full-bag? [report list "take" one-of hit-food-RL]
+  ;;;2
+  if energy <= 10 * rocket-damage [ if not empty-bag? [report "eat"] ] 
+  ;;;3
+  if (get-rocket-number = 0 and get-energy self > rocket-cost) [report "build-rocket"]
+  ;;;4
+  let lowlife-enemy-RL min-one-of percepts with [not is-rocket? self and not is-food? self and not is-explorer? self and is-my-enemy? myself] [get-energy self]
+  if lowlife-enemy-RL != nobody [
+    set-heading lowlife-enemy-RL
+    set ctask word "proLISP_waiting-shot-order " 30
+    report list "launch-rocket" towards lowlife-enemy-RL
+  ]
+  
+  
+  ifelse exist-beliefs-of-type "proLISP_dont-shot" [
+    let x read-first-belief-of-type "proLISP_dont-shot"
+    remove-belief x
+  ][
+  
+  set-heading first val
+  set ctask word "proLISP_waiting-shot-order " 30
+  report list "launch-rocket" first val
+  ]
+  
+  report "idle"
+  
+end
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;        UDATE-MSG         ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; ask-target-order : généralisation de pythagore
+;;;; permet le tire a distance
+to proLISP_update-msg
+
+  let angleMax 32;l'angle decart pour laisser passer la rocket, pour donner l'ordre d'un dodge
+  
+  let count-dodger 0
+  
+  ;init
+  let msg 0
+  let content 0
+  let dts 0
+  let hts 0
+  let perform 0
+  let var 10000
+  
+  while [not empty? incoming-queue]
+  [
+    set msg get-message
+    set content get-content msg
+    set dts get-distance-to-sender msg
+    set hts get-heading-to-sender msg
+    set perform get-performative msg
+    
+    if perform = "proLISP_target-attack?" [
+      if (member? "proLISP_target-attack" ctask) or (member? "proLISP_defence-attack" ctask) [
+        reply msg "proLISP_need-assistance" []
+        
+      ]
+    ]
+    
+    if (perform = "proLISP_dodge-order") [
+      set-heading content
+      set-heading get-heading + 90
+      if member? "proLISP_long-attack-locked" ctask [
+        ifelse hts > 180 [
+          set-heading get-heading + 90
+        ][
+        set-heading get-heading - 90
+        ]
+      ]
+      set ctask "proLISP_dodge"
+    ]
+    
+    if perform = "proLISP_need-assistance" [
+      if var > dts [
+         set-heading hts
+         set var dts
+      ]
+    ]
+   
+    ;;MSG DES EXP POUR AJOUTER LINTENTION DE LEXISTENCE DE 1 a PLUSIEURS BASE ENEMY, NON UTILISE DANS CETTE VERSION
+    if perform = "proLISP_enemy-base-spotted" [
+      add-intention (word "proLISP_move-towards-dest " hts) "proLISP_at-dest"
+      let bel fput "proLISP_enemy-base-spotted" (list dts)
+      add-belief bel
+    ]
+   
+    ;;;
+    ;;; CALCUL DE L'ANGLE POUR UNE ATTACK A DISTANCE
+    ;;;
+    if ((perform = "proLISP_ask-target-order") and (member? "proLISP_target-attack" ctask)) or ((perform = "proLISP_ask-target-order") and (member? "proLISP_defence-attack" ctask))
+    [
+     
+         let target 0
+       
+         set target min-one-of percepts with [not is-rocket? self and not is-food? self and not is-explorer? self and is-my-enemy? myself and not is-base? self] [get-energy self]
+         if target != nobody [
+           
+           set-heading target
+           let t get-heading
+           let vt 0;reverse t
+           
+           ;reverse t
+           ifelse t > 180
+           [ set vt (t - 180) ]
+           [ set vt (t + 180) ]
+           
+           
+           let aa 0;angle
+           let o "" ;ordre:indique si l'angle part vers le bas ou vers le haut (coordonnées polaires) par rapport au RL destinataire 
+            
+           ;;12 CAS POSSIBLES
+            
+           
+           ;;1 
+           if t < 90 [   if hts < t [ set aa (t - hts) set o "-" ]   ]
+           ;;2
+           if t < 90 [  if hts > vt [  set aa ((360 - hts) + t)  set o "-" ]  ]
+           ;;3
+           if t < 90 [  if hts > t and hts < vt [ set aa (hts - t)  set o "+" ]     ]
+           ;;4
+           if t < 180 and t > 90 [ if hts < t [ set aa (t - hts)  set o "-"   ]     ]
+           ;;5
+           if t < 180 and t > 90 [ if hts > t and hts < vt [ set aa (hts - t)  set o "+" ]      ]
+           ;;6
+           if t < 180 and t > 90 [ if hts > vt [ set aa ((360 - hts) + t) set o "-" ]      ]
+           ;;7
+           if t > 180 and t < 270 [ if hts < vt [ set aa ((360 - t) + hts) set o "+" ]      ]
+           ;;8
+           if t > 180 and t < 270 [ if hts < t and hts > vt [ set aa (t - hts)  set o "-" ]       ]
+           ;;9
+           if t > 180 and t < 270 [ if hts > t [ set aa (hts - t)   set o "+" ]        ]
+           ;;10
+           if t > 270 [ if hts > t [ set aa (hts - t) set o "+"  ]        ]
+           ;;11
+           if t > 270 [ if hts < vt [ set aa ( (360 - t) + hts) set o "+" ]        ]
+           ;;12
+           if t > 270 [ if hts < t and hts > vt [ set aa (t - hts) set o "-" ]        ]
+
+           if t = hts [ reply msg "proLISP_target-order" (list hts 0) ]
+        
+           ;THEOREME DE PYTHAGORE GENERALISE
+           ;http://www.dcode.fr/triangle
+           
+           let a 0 ;cote a
+           let b 0 ;cote b
+           let c 0 ;cote c
+         
+           let alpha 0
+           let beta 0
+           let omega aa ;angle connu 
+           
+           set a dts
+           set b distance target
+           set c (sqrt((a * a)+(b * b)-(2 * a * b * cos omega)))
+           
+           set alpha ( ((b * b) + (c * c) - (a * a)) / (2 * b * c) )
+           set beta ( ((c * c) + (a * a) - (b * b)) / (2 * c * a) )
+           
+           ;Calcul de arccos en radian
+           set alpha (sqrt ( 1 - (alpha * alpha)))
+           set beta (sqrt ( 1 - (beta * beta)))
+           
+           ;Conversion radian en degres
+           set alpha (alpha * 180 / pi )
+           set beta (beta * 180 / pi )
+           
+           ;choix de l'angle          
+           ifelse o = "-"
+           [reply msg "proLISP_target-order" (list beta c "-")]
+           [reply msg "proLISP_target-order" (list beta c "+")]
+               
+         ]
+     
+    ]
+     
+    ;ORDRE DE TIRER
+    ;JE VISE, JAVERTIS MON ANGLE DE TIRE, JE PASSE EN "LONG-ATTACK-LOCKED"    
+    if (perform = "proLISP_target-order") [
+      
+      let pos 0
+      
+      let angle item 0 content
+      let dist item 1 content
+      let ordre item 2 content
+      
+      
+      ifelse ordre = "-" [
+        if hts > 180 [ set pos (hts - angle) ]
+        if hts < 180 [
+          ifelse angle > hts [
+            set pos (360 - (angle - hts))
+          ][ set pos (hts - angle) ]
+        ]
+      ][
+      if hts > 180 [
+        ifelse (360 - hts) < angle [
+          set pos (angle - (360 - hts))
+        ][ set pos (hts + angle) ]
+      ]
+      if hts < 180 [ set pos (hts + angle) ]
+      ]
+      
+      set-heading pos
+
+     if dist < 30 [
+      broadcast-message other get-rocket-launchers "proLISP_warning-shot" pos
+      set ctask word "proLISP_long-attack-locked " (list get-heading dist)
+     ]
+      
+    ]
+    
+    
+  
+    ;DEMANDE D'UN CHECK POUR SAVOIR SIL NY A PAS D'ALLY DEVANT
+    if (perform = "proLISP_warning-shot")[
+        reply msg "proLISP_check" (list who content)      
+    ]    
+    
+    ;
+    if (perform = "proLISP_check") [
+      
+      if dts < 5[
+        set angleMax angleMax + 10
+      ]
+      if dts < 10[
+        set angleMax angleMax + 8
+      ]
+      
+      let hg item 1 content
+      let posMin (hg - (angleMax / 2))
+      let posMax (hg + (angleMax / 2))
+      
+      if hg < 90 and (hg < (angleMax / 2)) [
+        set posMin (360 - ((angleMax / 2) - hg))
+        set posMax (hg + (angleMax / 2))
+      ]         
+      
+      if hg > 270 and ((360 - hg) < (angleMax / 2)) [
+        set posMax (hg + (angleMax / 2))
+        set posMin ((angleMax / 2) - (360 - hg))
+      ]   
+      if hts > posMin and hts < posMax [
+        
+        if not exist-beliefs-of-type "proLISP_dont-shot" [
+          let bel fput "proLISP_dont-shot" []
+          add-belief bel
+        ]
+        
+        reply msg "proLISP_dodge-order" hg        
+      ]
+      
+    ]
+    
+    
+ ]
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;     DEFENCE-ATTACK       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report proLISP_defence-attack
+  
+  proLISP_update-msg 
+  
+  if member? "proLISP_dodge" ctask [ set ctask "proLISP_defence-attack" report "move" ]  
+      
+  if not full-bag? [
+  let spotted-food min-one-of percepts with [is-food? self][distance myself]
+  let hit-food percepts with [is-food? self and is-colliding? myself]   
+  if any? hit-food [
+      report list "take" one-of hit-food
+  ] 
+  if spotted-food != nobody [
+    if distance spotted-food < 6 [
+    set-heading spotted-food report "move" 
+    ]
+  ]
+  ]
+
+  
+  ;;;0 
+  let target min-one-of percepts with [not is-rocket? self and not is-food? self and not is-explorer? self and is-my-enemy? myself] [get-energy self]
+
+  ;;;1 
+  let hit-food-RL percepts with [is-food? self and is-colliding? myself]
+  if any? hit-food-RL and not full-bag? [report list "take" one-of hit-food-RL]
+  
+  ;;;2 
+  if energy <= 10 * rocket-damage [ if not empty-bag? [report "eat"] ] 
+  
+  ;;;3 
+  if (get-rocket-number = 0 and get-energy self > rocket-cost) [report "build-rocket"]
+
+  ifelse target != nobody [
+    set-heading target
+    report list "launch-rocket" towards target
+  ][
+     set ctask "proLISP_search-enemy"
+     report "move"
+     
+  ]
+  report "move"
+  
+end
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;    BDI  INTENTION        ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   CONDITIONS DARRET      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;          OFF             ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to proLISP_move-towards-dest[theheading]
+  set-heading theheading
+end
+
+to-report proLISP_at-dest
+ ifelse (blocked? and hitting-north-wall? self) or (blocked? and hitting-south-wall? self) or (blocked? and hitting-east-wall? self) or (blocked? and hitting-west-wall? self)  
+ [ report true ]
+ [ report false]
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;    BASE        BEHAVIOR  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;    BASE        BEHAVIOR  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;    BASE        BEHAVIOR  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to-report base-t1-action
+
+  let enemy-RL min-one-of percepts with [not is-my-friend? myself and is-rocket-launcher? self][distance myself]
+  if enemy-RL != nobody
+  [
+    if distance enemy-RL < 15 [
+    broadcast-message get-rocket-launchers with [not is-colliding? myself] "proLISP_need-assistance" []
+    ]
+  ]
+  
+
+
+  set-heading max-one-of percepts with [is-rocket-launcher? self or is-explorer? self][distance myself]
+
+  let count_EXP count get-explorers
+  let count_RL count get-rocket-launchers
+  
+
+  ifelse energy >= (1 * rocket-launcher-cost + 1 * explorer-cost )
+  [   
+
+    if count_RL > 10
+    [
+      ifelse count_EXP > 30 ;T5
+      [report "build-rocket-launcher"]
+      [  
+        ifelse random 2 < 1 ;T4
+        [report "build-rocket-launcher"]
+        [report "build-explorer"]
+      ]
+    ]
+
+    if count_EXP > 20 ;T3
+    [report "build-rocket-launcher"]
+
+    ifelse count_EXP > 15 ;T2
+    [ 
+        ifelse random 3 < 1 
+        [report "build-rocket-launcher"]
+        [report "build-explorer"]
+    ][ 
+       ifelse count_EXP > 10
+       [
+        ifelse random 4 < 1 ;T1
+        [report "build-rocket-launcher"] 
+        [report "build-explorer"]
+       ]
+       [report "build-explorer"] ;T0.5
+    ]
+    
+  ] 
+  [
+    ifelse empty-bag? 
+    [report "idle"] 
+    [report "eat" ]
+  ]
+  
+  report "idle"
+  
+end
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   EXPLORER     BEHAVIOR  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   EXPLORER     BEHAVIOR  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;   EXPLORER     BEHAVIOR  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+to-report explorer-t1-action
+
+  if ctask = "initial-state" [set ctask "proLISP_search-food-EXP"]
+  let r runresult ctask
+  if (blocked? and hitting-north-wall? self) or (blocked? and hitting-south-wall? self) or (blocked? and hitting-east-wall? self) or (blocked? and hitting-west-wall? self)  [ set-random-heading ] 
+  if blocked [
+    set-random-heading
+  ]
+  report r
+  
+end
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;    SEARCH-FOOD-EXP       ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;; OPTIMISEE
+;;;; LE PLUS PROCHE SE DIRIGE VERS LE FOOD, LES AUTRES CONTINUENT LEUR CHEMIN SANS CHANGE HEADING
+to-report proLISP_search-food-EXP
+    
+  
+  let enemy-base-spotted percepts with [ is-base? self and not is-my-friend? myself ]
+  let friend-base-spotted percepts with [ is-base? self and is-my-friend? myself ]
+  let min-fr-B-spotted 0
+  let spotted-food percepts with [is-food? self]
+  let hit-food spotted-food with [is-colliding? myself]  
+  let my-Head get-heading
+  let my-old-head 0
+  
+  
+  if any? hit-food [
+    ifelse empty-bag?[
+      set ctask "proLISP_back-to-base-EXP"
+      report list "take" one-of hit-food
+    ][
+    set ctask "proLISP_back-to-base-EXP"
+    report list "take" (one-of hit-food)
+    ]
+  ]
+  
+  if (blocked? and hitting-north-wall? self) or (blocked? and hitting-south-wall? self) or (blocked? and hitting-east-wall? self) or (blocked? and hitting-west-wall? self)
+  [set-random-heading]
+  
+  if blocked[
+    ifelse (ctask != "proLISP_back-to-base-EXP" or ctask != "proLISP_search-food-EXP")
+    [report "idle"]
+    [set-random-heading]
+  ]
+  
+  ;Systeme d'esquive de merde des enemy RL quand low life
+  let enemy-RL percepts with [ not is-my-friend? myself and is-rocket-launcher? self ]
+  if any? enemy-RL[
+    let oneRL min-one-of enemy-RL [distance myself]
+    let myHead get-heading
+    set-heading oneRL
+    let HeadTargetOneRL get-heading
+    set-heading myHead
+    
+    if distance oneRL < 20 and not any? spotted-food and not (myHead > HeadTargetOneRL + 90 or myHead < HeadTargetOneRL - 90) and energy <= rocket-damage * 2 [
+      ;set label "LOW LIFE"
+      let rand random 4
+      let x 0
+      if rand = 1 [ set x 90 ]
+      if rand = 2 [ set x 100 ]
+      if rand = 3 [ set x 110 ]
+      if rand = 4 [ set x 120 ]
+      
+      set rand random 2
+      if rand = 1 [set-heading HeadTargetOneRL + x]
+      if rand = 2 [set-heading HeadTargetOneRL - x]
+      report "move"
+    ]
+  ]
+  
+  
+  if full-bag? [
+    set-heading min-one-of get-bases [distance myself]
+    set ctask "proLISP_back-to-base-EXP"
+    report "move" 
+  ]
+  
+  
+  
+  
+  
+  if any? enemy-base-spotted [
+    if distance min-one-of enemy-base-spotted [distance myself] < 10 [
+      broadcast-message get-rocket-launchers "proLISP_enemy-base-spotted" []
+    ]
+  ]
+  
+  
+  if energy <= rocket-damage and not empty-bag?[
+    report "eat"
+  ]  
+  
+  ;;;
+  ;;; OPTIMISATION DES EXPLORERS
+  ;;; CEST TOUJOURS LE PLUS PROCHE QUI RECOLTE LES AUTRES CONTINUENT LEUR CHEMIN
+  ;;;
+  ifelse any? spotted-food [
+    let thefood min-one-of spotted-food [distance myself]
+    let spotted-others-EXP percepts with [ (is-explorer? self and headed-towards? thefood and not is-my-friend? myself) or (is-explorer? self and is-my-friend? myself and not full-bag?)]   
+    ifelse any? spotted-others-EXP [
+      
+      
+      ;l'agent voisin le plus proche du food visé 
+      let leplusproche min-one-of spotted-others-EXP [distance thefood]
+      
+      let save_heading get-heading
+      
+      set-heading leplusproche
+      let heading-leplusproche get-heading
+      
+      set-heading theFood
+      let heading-theFood get-heading
+      
+      set-heading save_heading
+      
+      let distance-food-myself distance theFood
+      let distance-leplusproche-myself distance leplusproche
+      
+      let alpha 0
+      
+      let xf distance-food-myself * (cos heading-theFood)
+      let yf distance-food-myself * (sin heading-theFood)
+      
+      let xb distance-leplusproche-myself * (cos heading-leplusproche)
+      let yb distance-leplusproche-myself * (sin heading-leplusproche)
+      
+      let d sqrt ( ((xf - xb) * (xf - xb)) + ((yf - yb) * (yf - yb)))
+      
+      ifelse d < distance-food-myself [
+        if headed-towards? leplusproche [ set-heading get-heading + 90 ]
+        set-heading save_heading
+        report "move" 
+      ]
+      [
+        set-heading theFood
+        report "move"
+      ]
+      
+    ][
+    
+    set-heading theFood
+    report "move"
+    
+    ]
+    
+  ][ 
+  ifelse not empty-bag? [
+    set-heading min-one-of get-bases [distance myself]
+    set ctask "proLISP_back-to-base-EXP"
+    report "move" 
+  ][
+  report "move"
+  ]
+  
+  ]
+  
+  report "move"
+end
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;    BACK-TO-BASE-EXP      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;                          ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+to-report proLISP_back-to-base-EXP
+ 
+  let spotted-food percepts with [is-food? self]
+  let hit-food spotted-food with [is-colliding? myself]
+  let myRLs percepts with [is-my-friend? myself and is-rocket-launcher? self ] 
+  let coll-RL myRLs with [is-colliding? myself]  
+  
+  if energy <= rocket-damage and not empty-bag? [
+    report "eat"
+  ]
+  
+  
+  ifelse not empty-bag? 
+  [
+    if any? myRLs with [energy < 1500] and (count get-explorers) > 20 [
+      let myRl min-one-of myRLs [get-energy self]
+      
+      if myRl != nobody [
+        ifelse is-colliding? myRl [ 
+          
+          set ctask "proLISP_search-food-EXP"
+          report list "give" myRl
+          
+        ][
+        set-heading myRl
+        report "move"
+        ]
+      ]
+    ]
+    
+    
+    
+    let lesBases get-bases with [is-colliding? myself]
+    
+    ifelse any? lesBases 
+      [
+        let theBase min-one-of lesBases [distance myself]
+        let demi-tour get-heading + 180
+        
+        set ctask "proLISP_search-food-EXP"
+        send-message theBase "proLISP_get-heading" get-heading
+        report list "give" theBase
+      ] 
+      [
+        ifelse not full-bag? 
+        [
+          
+          if any? hit-food [
+            ifelse empty-bag?[
+              set ctask "proLISP_back-to-base-EXP"
+              report list "take" one-of hit-food
+            ][
+            set ctask "proLISP_back-to-base-EXP"
+            report list "take" (one-of hit-food)
+            ]
+          ]
+          
+          ifelse any? spotted-food [
+            
+            
+            let thefood min-one-of spotted-food [distance myself]
+            
+            let spotted-others-EXP percepts with [(is-explorer? self and headed-towards? thefood and not is-my-friend? myself) or (is-explorer? self and is-my-friend? myself and not full-bag?)] 
+            ifelse any? spotted-others-EXP [
+              
+              ;l'agent voisin le plus proche du food visé 
+              let leplusproche min-one-of spotted-others-EXP [distance thefood]
+              
+              let save_heading get-heading
+              
+              set-heading leplusproche
+              let heading-leplusproche get-heading
+              
+              set-heading theFood
+              let heading-theFood get-heading
+              
+              set-heading save_heading
+              
+              let distance-food-myself distance theFood
+              let distance-leplusproche-myself distance leplusproche
+              
+              
+              let xf distance-food-myself * (cos heading-theFood)
+              let yf distance-food-myself * (sin heading-theFood)
+              let xb distance-leplusproche-myself * (cos heading-leplusproche)
+              let yb distance-leplusproche-myself * (sin heading-leplusproche)
+              
+              let d sqrt ( ((xf - xb) * (xf - xb)) + ((yf - yb) * (yf - yb)))
+              
+              ifelse d < distance-food-myself [
+                set-heading save_heading
+                report "move" 
+              ]
+              [
+                set-heading theFood
+                report "move"
+              ]
+              
+            ][
+            
+            set-heading theFood
+            report "move"
+            
+            ]
+            
+          ][ 
+          ifelse not empty-bag? [
+            set-heading min-one-of get-bases [distance myself]
+            set ctask "proLISP_back-to-base-EXP"
+            report "move" 
+          ][
+          report "move"
+          ]
+          
+          ]
+          
+        ]
+        [
+          set-heading min-one-of get-bases [distance myself]
+          report "move"
+        ]
+        
+        
+      ]
+  ]
+  [
+    set ctask "proLISP_search-food-EXP"
+    report "move"
+  ]
+  
+  report "move"
+  
+end
