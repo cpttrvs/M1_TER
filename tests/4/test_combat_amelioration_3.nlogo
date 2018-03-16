@@ -1,11 +1,18 @@
-extensions [CogLogo]
+extensions [ CogLogo ]
 
-breed [humans human]
-humans-own [groupId strength knowledge life energy parry hasParried? target originalColor d:strength ]
+__includes [ "environment_init.nls" ]
 
-patches-own [value]
+breed [ humans human ]
+humans-own [ groupId originalColor camp
+  strength life energy
+  parry hasParried?
+  desertKnowledge forestKnowledge mountainKnowledge fieldKnowledge
+  target
+  d:s ]
 
-globals [debugValue]
+patches-own [ value base environmentType buffValue alteration ]
+
+globals [ debugValue default desert desertColor forest forestColor mountain mountainColor lake lakeColor ]
 
 ;; système de combat avec :
 ;; - gestion de l'environnement (patch) simplifié
@@ -18,29 +25,48 @@ to setup
   reset-ticks
   coglogo:reset-simulation
 
+  ask patches
+  [ set pcolor scale-color grey (value) 0 40
+    set pcolor black
+    set base 0
+    set environmentType 0
+    set buffValue 0 ]
+
+  initEnvironment
+  initBase
+
   create-humans population [
     set shape "person"
     set color red
     set originalColor color
     set size 2
+    set camp (patches with [ base = 1 ])
     setxy random-xcor random-ycor
 
     coglogo:init-cognitons
     set strength (random max-strength) + 1
-    set knowledge (random max-knowledge) + 1
     set life starting-life
     set energy starting-energy
 
     let tempParry random variance-parry-chance * 2
     ifelse tempParry > variance-parry-chance
-    [ set parry parry-chance + tempParry ]
-    [ set parry parry-chance - tempParry ]
+    [ set parry parry-chance + (tempParry / 2) ]
+    [
+      ifelse (parry-chance - variance-parry-chance) < 0
+      [ set parry 0 ]
+      [set parry parry-chance - (tempParry / 2) ]
+    ]
+    set hasParried? false
+
+    set desertKnowledge (random env-knowledge) + 1
+    set forestKnowledge (random env-knowledge) + 1
+    set mountainKnowledge (random env-knowledge) + 1
+    set fieldKnowledge 0
+
+
 
     set groupId 1
     coglogo:set-cogniton-value "interactionOffset" starting-energy
-
-    ;;debug
-    set d:strength strength
   ]
 
 
@@ -49,30 +75,33 @@ to setup
     set color blue
     set originalColor color
     set size 2
+    set camp (patches with [ base = 2 ])
     setxy random-xcor random-ycor
 
     coglogo:init-cognitons
     set strength (random max-strength) + 1
-    set knowledge (random max-knowledge) + 1
     set life starting-life
     set energy starting-energy
 
     let tempParry random variance-parry-chance * 2
     ifelse tempParry > variance-parry-chance
-    [ set parry parry-chance + tempParry ]
-    [ set parry parry-chance - tempParry ]
+    [ set parry parry-chance + (tempParry / 2) ]
+    [
+      ifelse (parry-chance - variance-parry-chance) < 0
+      [ set parry 0 ]
+      [set parry parry-chance - (tempParry / 2) ]
+    ]
+    set hasParried? false
+
+    set desertKnowledge (random env-knowledge) + 1
+    set forestKnowledge (random env-knowledge) + 1
+    set mountainKnowledge (random env-knowledge) + 1
+    set fieldKnowledge 0
 
     set groupId 2
     coglogo:set-cogniton-value "interactionOffset" starting-energy
-
-    ;;debug
-    set d:strength strength
   ]
 
-  ask patches [
-    set value random max-environment
-    set pcolor scale-color grey (value) 0 40
-  ]
 end
 
 to go
@@ -90,23 +119,11 @@ to goHumans
   coglogo:set-cogniton-value "energy" energy
   coglogo:set-cogniton-value "exhaustion" (starting-energy - energy)
 
-  let environment 0
-  ask patch-here [set environment value / 10]
-  coglogo:set-cogniton-value "environment" environment
-  coglogo:set-cogniton-value "capacity" strength + knowledge * environment
-
-  ;;techniquement, le tick après une parade, si l'intéraction retour n'a pas été effectué, on annule le bonus
-  if hasParried? = true [
-    set hasParried? false
-    set strength strength / 2
-  ]
+  set fieldKnowledge getFieldKnowledge
+  coglogo:set-cogniton-value "capacity" strength + fieldKnowledge
 
   run coglogo:choose-next-plan
   coglogo:report-agent-data
-
-  ;;debug
-  if strength > d:strength * 2
-  [ set debugValue debugValue + 1 ]
 end
 
 ;;;;;;;;;;;;;;combat
@@ -129,19 +146,13 @@ to attack
       let targetKnowledge 0
       ask target [
         set targetStrength strength
-        set targetKnowledge knowledge
+        set targetKnowledge fieldKnowledge
       ]
 
-      let environment 0
-      ask patch-here [set environment value / 10]
-      coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge * environment
+      coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge
 
-      ask target [
-        if hasParried? = true [
-          set strength strength / 2
-          set hasParried? false
-        ]
-      ]
+      ask target [ deactivateParry ]
+
     ] [
       ;; sinon s'approcher d'un ennemi
       face min-one-of other humans with [groupId != myGroupId] [distance myself]
@@ -155,6 +166,9 @@ to attack
     deactivateTarget
     wiggle
   ]
+
+  deactivateParry
+
 end
 
 ;;si la fatigue est supérieure à l'énergie
@@ -163,6 +177,7 @@ to flee
   let myGroupId groupId
 
   deactivateTarget
+  deactivateParry
 
   ;;s'enfuir
   ifelse any? other humans with [groupId != myGroupId] in-radius vision [
@@ -172,16 +187,10 @@ to flee
   ]
   [wiggle]
 
-  ;;la fuite fait perdre l'avantage de la parade
-  if hasParried? = true [
-    set hasParried? false
-    set strength strength / 2
-  ]
-
   set energy energy + 1
 
   if life < starting-life
-  [ set life life + 0.25 ]
+  [ set life life + 0.1 ]
   ;;tant que l'energie n'est pas au maximum à nouveau: s'enfuir
   ifelse (energy < starting-energy)
   [ coglogo:deactivate-cogniton "energy" ]
@@ -190,25 +199,32 @@ end
 
 to win
   set energy energy - 1
+
   if target != nobody [
-    ask target [ set life life - 1 ]
+    let parry? random 100
+    let parry-dest 0
+    ask target [ set parry-dest parry ]
+    ifelse parry? < parry-dest [
+      ask target [
+        set hasParried? true
+        set color white
+        set strength strength * 2 ;; la force est doublée pour la prochaine intéraction
+      ]
+    ] [
+      ask target [
+        set hasParried? false
+        set life life - 1
+      ]
+    ]
   ]
+
   deactivateTarget
+  deactivateParry
 end
 
-;;si l'attaque est parée, pas de perte de vie et un bonus pour la prochaine intéraction
 to loose
   set energy energy - 1
 
-  let parry? random 100
-  ifelse parry? < parry [
-    set hasParried? true
-    set color white
-    set strength strength * 2 ;; la force est doublée pour la prochaine intéraction
-  ] [
-    set hasParried? false
-    set life life - 1
-  ]
   deactivateTarget
 end
 
@@ -221,6 +237,13 @@ to deactivateTarget
   coglogo:deactivate-cogniton "targetCapacity"
 end
 
+to deactivateParry
+  if hasParried? = true [
+    set hasParried? false
+    set strength strength / 2
+  ]
+end
+
 to wiggle
   rt random 70
   lt random 70
@@ -230,11 +253,11 @@ end
 GRAPHICS-WINDOW
 210
 10
-647
-448
+728
+529
 -1
 -1
-13.0
+10.0
 1
 10
 1
@@ -244,10 +267,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--16
-16
--16
-16
+-25
+25
+-25
+25
 1
 1
 1
@@ -256,9 +279,9 @@ ticks
 
 BUTTON
 135
-60
+55
 200
-93
+88
 NIL
 setup
 NIL
@@ -272,15 +295,15 @@ NIL
 1
 
 SLIDER
-10
-100
-200
-133
+5
+90
+195
+123
 population
 population
 1
 100
-5.0
+10.0
 1
 1
 NIL
@@ -288,9 +311,9 @@ HORIZONTAL
 
 BUTTON
 5
-60
+55
 68
-93
+88
 NIL
 go
 T
@@ -321,16 +344,31 @@ NIL
 1
 
 SLIDER
-10
-135
-200
-168
+5
+120
+195
+153
 max-strength
 max-strength
 1
 10
-10.0
+5.0
 0.25
+1
+NIL
+HORIZONTAL
+
+SLIDER
+5
+255
+195
+288
+starting-life
+starting-life
+1
+50
+25.0
+1
 1
 NIL
 HORIZONTAL
@@ -340,26 +378,11 @@ SLIDER
 285
 195
 318
-starting-life
-starting-life
-1
-50
-15.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-5
-320
-195
-353
 starting-energy
 starting-energy
 1
 100
-41.0
+49.0
 1
 1
 NIL
@@ -367,14 +390,14 @@ HORIZONTAL
 
 SLIDER
 5
-365
+315
 195
-398
+348
 vision
 vision
 1
 20
-10.5
+4.0
 0.5
 1
 NIL
@@ -382,9 +405,9 @@ HORIZONTAL
 
 BUTTON
 70
-60
+55
 134
-93
+88
 step
 go
 NIL
@@ -398,10 +421,10 @@ NIL
 1
 
 PLOT
-660
-170
-860
-320
+5
+650
+205
+800
 number of agents
 NIL
 NIL
@@ -417,10 +440,10 @@ PENS
 "humans2" 1.0 0 -13345367 true "" "plot count humans with [groupId = 2]"
 
 SLIDER
-10
-170
-200
-203
+5
+150
+195
+183
 max-knowledge
 max-knowledge
 0
@@ -433,39 +456,24 @@ HORIZONTAL
 
 SLIDER
 5
-410
 195
-443
-max-environment
-max-environment
-0
-10
-4.75
-0.25
-1
-NIL
-HORIZONTAL
-
-SLIDER
-10
-210
-200
-243
+195
+228
 parry-chance
 parry-chance
 0
 100
-19.0
+50.0
 1
 1
 %
 HORIZONTAL
 
 SLIDER
-25
-245
-200
-278
+5
+225
+180
+258
 variance-parry-chance
 variance-parry-chance
 0
@@ -477,15 +485,90 @@ NIL
 HORIZONTAL
 
 MONITOR
-720
-370
-797
-415
+205
+700
+282
+745
 NIL
 debugValue
 17
 1
 11
+
+SLIDER
+15
+385
+187
+418
+buff-give-by-beach
+buff-give-by-beach
+0
+10
+3.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+15
+415
+187
+448
+buff-give-by-forest
+buff-give-by-forest
+0
+10
+3.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+15
+445
+187
+478
+buff-give-by-mountain
+buff-give-by-mountain
+0
+10
+3.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+15
+475
+187
+508
+buff-give-by-lake
+buff-give-by-lake
+0
+10
+1.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+15
+525
+187
+558
+env-knowledge
+env-knowledge
+0
+10
+5.0
+0.5
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?

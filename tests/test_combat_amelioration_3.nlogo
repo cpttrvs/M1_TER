@@ -1,7 +1,7 @@
 extensions [CogLogo]
 
 breed [humans human]
-humans-own [groupId strength knowledge life energy parry hasParried? target originalColor d:strength ]
+humans-own [groupId strength knowledge life energy parry hasParried? target originalColor d:s]
 
 patches-own [value]
 
@@ -33,14 +33,16 @@ to setup
 
     let tempParry random variance-parry-chance * 2
     ifelse tempParry > variance-parry-chance
-    [ set parry parry-chance + tempParry ]
-    [ set parry parry-chance - tempParry ]
+    [ set parry parry-chance + (tempParry / 2) ]
+    [
+      ifelse (parry-chance - variance-parry-chance) < 0
+      [ set parry 0 ]
+      [set parry parry-chance - (tempParry / 2) ]
+    ]
+    set hasParried? false
 
     set groupId 1
     coglogo:set-cogniton-value "interactionOffset" starting-energy
-
-    ;;debug
-    set d:strength strength
   ]
 
 
@@ -59,14 +61,16 @@ to setup
 
     let tempParry random variance-parry-chance * 2
     ifelse tempParry > variance-parry-chance
-    [ set parry parry-chance + tempParry ]
-    [ set parry parry-chance - tempParry ]
+    [ set parry parry-chance + (tempParry / 2) ]
+    [
+      ifelse (parry-chance - variance-parry-chance) < 0
+      [ set parry 0 ]
+      [set parry parry-chance - (tempParry / 2) ]
+    ]
+    set hasParried? false
 
     set groupId 2
     coglogo:set-cogniton-value "interactionOffset" starting-energy
-
-    ;;debug
-    set d:strength strength
   ]
 
   ask patches [
@@ -95,18 +99,8 @@ to goHumans
   coglogo:set-cogniton-value "environment" environment
   coglogo:set-cogniton-value "capacity" strength + knowledge * environment
 
-  ;;techniquement, le tick après une parade, si l'intéraction retour n'a pas été effectué, on annule le bonus
-  if hasParried? = true [
-    set hasParried? false
-    set strength strength / 2
-  ]
-
   run coglogo:choose-next-plan
   coglogo:report-agent-data
-
-  ;;debug
-  if strength > d:strength * 2
-  [ set debugValue debugValue + 1 ]
 end
 
 ;;;;;;;;;;;;;;combat
@@ -136,12 +130,8 @@ to attack
       ask patch-here [set environment value / 10]
       coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge * environment
 
-      ask target [
-        if hasParried? = true [
-          set strength strength / 2
-          set hasParried? false
-        ]
-      ]
+      ask target [ deactivateParry ]
+
     ] [
       ;; sinon s'approcher d'un ennemi
       face min-one-of other humans with [groupId != myGroupId] [distance myself]
@@ -155,6 +145,9 @@ to attack
     deactivateTarget
     wiggle
   ]
+
+  deactivateParry
+
 end
 
 ;;si la fatigue est supérieure à l'énergie
@@ -163,6 +156,7 @@ to flee
   let myGroupId groupId
 
   deactivateTarget
+  deactivateParry
 
   ;;s'enfuir
   ifelse any? other humans with [groupId != myGroupId] in-radius vision [
@@ -172,16 +166,10 @@ to flee
   ]
   [wiggle]
 
-  ;;la fuite fait perdre l'avantage de la parade
-  if hasParried? = true [
-    set hasParried? false
-    set strength strength / 2
-  ]
-
   set energy energy + 1
 
   if life < starting-life
-  [ set life life + 0.25 ]
+  [ set life life + 0.1 ]
   ;;tant que l'energie n'est pas au maximum à nouveau: s'enfuir
   ifelse (energy < starting-energy)
   [ coglogo:deactivate-cogniton "energy" ]
@@ -190,25 +178,32 @@ end
 
 to win
   set energy energy - 1
+
   if target != nobody [
-    ask target [ set life life - 1 ]
+    let parry? random 100
+    let parry-dest 0
+    ask target [ set parry-dest parry ]
+    ifelse parry? < parry-dest [
+      ask target [
+        set hasParried? true
+        set color white
+        set strength strength * 2 ;; la force est doublée pour la prochaine intéraction
+      ]
+    ] [
+      ask target [
+        set hasParried? false
+        set life life - 1
+      ]
+    ]
   ]
+
   deactivateTarget
+  deactivateParry
 end
 
-;;si l'attaque est parée, pas de perte de vie et un bonus pour la prochaine intéraction
 to loose
   set energy energy - 1
 
-  let parry? random 100
-  ifelse parry? < parry [
-    set hasParried? true
-    set color white
-    set strength strength * 2 ;; la force est doublée pour la prochaine intéraction
-  ] [
-    set hasParried? false
-    set life life - 1
-  ]
   deactivateTarget
 end
 
@@ -219,6 +214,13 @@ end
 
 to deactivateTarget
   coglogo:deactivate-cogniton "targetCapacity"
+end
+
+to deactivateParry
+  if hasParried? = true [
+    set hasParried? false
+    set strength strength / 2
+  ]
 end
 
 to wiggle
@@ -280,7 +282,7 @@ population
 population
 1
 100
-5.0
+7.0
 1
 1
 NIL
@@ -455,7 +457,7 @@ parry-chance
 parry-chance
 0
 100
-94.0
+37.0
 1
 1
 %
@@ -477,10 +479,10 @@ NIL
 HORIZONTAL
 
 MONITOR
-720
-370
-797
-415
+695
+335
+772
+380
 NIL
 debugValue
 17
