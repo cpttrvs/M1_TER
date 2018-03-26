@@ -1,221 +1,129 @@
 extensions [CogLogo]
 
 breed [humans human]
-humans-own [groupId strength knowledge life energy target originalColor ]
-
-patches-own [value]
-
-;1) j'ai supprimé tout ce qui n'était pas utilisé (schémaCog des cibles et énergie)
-;2) perdre cause plus de fatigue ce qui incite a fuir quand on perd
-;3) seul le cogniton forceCible a des liens d'influence sur les plans d'intéraction
-;force cible est désactivé à la fin de chaque interaction , ce qui force a reprendre une décision après le résultat
-;4) c'est interactionOffset qui monte les plans interaction au dessus du choix
-; il est set à la energie-depart (ce qui le met juste au dessus d'attaque dans le meilleur des cas) et reste statique
-;5) l'énergie est régulée pour ne jamais dépasser energie-depart
-;6) le décision maker est biaisé stochastique avec un bias de 5 (fort)
-
-; ps : j'ai eu un run ou les cibles on gagné ... héhéhé
-
-;propositions :
-;- faire 2 camps avec 2 bases.
-;- les 2 camps on le même schéma cog , un attibut camps pour les différencier
-;- prendre en compte le terrain
-;- role de construction pour modifier le terrain et le rendre + favorable (tranchées etc)
-;- plans d'attaquer mais aussi de se retrancher pour bloquer l'énnemi
-;- rentrer a la base pour se réparer (incovénient de lacher le terrain)
-;- détruire la base énemie pour gagner (peu importe si ca n'arrive jamais , c'est juste un objectif)
+breed [cibles cible]
+humans-own [force vie energie target]
+cibles-own [force vie energie vieTick]
 
 to setup
   clear-all
   reset-ticks
-  coglogo:reset-simulation
 
   create-humans population [
+    coglogo:init-cognitons
     set shape "person"
-    set color red
-    set originalColor color
+    set color white
     set size 2
     setxy random-xcor random-ycor
-
-    coglogo:init-cognitons
-    set strength (random max-strength) + 1
-    set knowledge (random max-knowledge) + 1
-    set life starting-life
-    set energy starting-energy
-    set groupId 1
-    coglogo:set-cogniton-value "interactionOffset" starting-energy
+    set force (random force-max)
+    set vie vie-depart
+    set energie energie-depart
   ]
 
-
-  create-humans population [
+  create-cibles population [
+    coglogo:init-cognitons
     set shape "person"
     set color blue
-    set originalColor color
     set size 2
     setxy random-xcor random-ycor
-
-    coglogo:init-cognitons
-    set strength (random max-strength) + 1
-    set knowledge (random max-knowledge) + 1
-    set life starting-life
-    set energy starting-energy
-    set groupId 2
-    coglogo:set-cogniton-value "interactionOffset" starting-energy
+    set force (random force-max)
+    set vie vie-depart
+    set energie energie-depart
+    set vieTick vie
   ]
 
-  ask patches [
-    set value random 10
-    set pcolor scale-color grey (value) 0 40
-  ]
 end
 
 to go
-  ask humans [goHumans]
+  ask humans [goTurtle]
+  ask cibles [goCible]
   tick
   update-plots
 end
 
 ;;; HUMANS
-to goHumans
-  if life <= 0 [ die ]
-  if energy > starting-energy
-  [set energy starting-energy]
-
-  coglogo:set-cogniton-value "energy" energy
-  coglogo:set-cogniton-value "exhaustion" (starting-energy - energy)
-  coglogo:set-cogniton-value "strength" strength
-  coglogo:set-cogniton-value "knowledge" knowledge
-
-  let environment 0
-  ask patch-here [set environment value / 10]
-  coglogo:set-cogniton-value "environment" environment
-  coglogo:set-cogniton-value "capacity" strength + knowledge * environment
-
+;si energie > repos, attaque sinon fuite
+to goTurtle
+  if vie <= 0 [ die ]
+  coglogo:set-cogniton-value "energie" energie
+  coglogo:set-cogniton-value "repos" (energie-depart - energie)
+  coglogo:set-cogniton-value "force" force
   run coglogo:choose-next-plan
   coglogo:report-agent-data
 end
 
-;;;;;;;;;;;;;;culturon
-to create-group
-  coglogo:leave-group "mob"
-  coglogo:create-and-join-group "mob" "leader"
-  coglogo:set-participation "mob" 4.0
-  set color white
-end
 
-to look-for-group
-  let myGroupId groupId
-  ifelse any? other humans with [groupId = myGroupId] in-radius vision
-  [ let id -1.0
-    ask min-one-of other humans with [groupId = myGroupId] [distance myself] [set id coglogo:get-group-role-id "mob" "leader"]
-    if id != -1
-    [coglogo:leave-group "mob"
-     coglogo:join-group "mob" "follower" id
-     coglogo:set-participation "mob" 4.0 ]]
-  [ wiggle ]
-end
-
-to lead-mob
-  set size 3
-  wiggle
-end
-
-to follow-leader
-  ifelse target != nobody
-  [let targetId -1.0
-    ask target [set targetId coglogo:get-group-role-id "mob" "leader"]
-    ifelse targetId = -1.0
-    [coglogo:leave-group "herd"]
-    [face target
-     fd 0.5]]
-  [coglogo:leave-group "herd"]
-end
-
-
-
-;;;;;;;;;;;;;;combat
-
-;;si l'energie est supérieure à la fatigue
-to attack
+to attaque
   set target nobody
-  let myGroupId groupId
 
-  ifelse any? other humans with [groupId != myGroupId] in-radius vision [
-    ;; si un ennemi est au contact
-    ifelse one-of other humans-here with [groupId != myGroupId] != nobody [
-      set color originalColor
-      set target one-of other humans-here with [groupId != myGroupId]
+  ifelse any? cibles in-radius vision [
+    ifelse one-of cibles-here != nobody [
+      set color red
+      set target one-of cibles-here
 
-      activateTarget
+      ;;traitement
+      coglogo:activate-cogniton "agressivité"
+      coglogo:feed-back-from-plan "attaque" energie
 
-      let targetStrength 0
-      let targetKnowledge 0
-      ask target [
-        set targetStrength strength
-        set targetKnowledge knowledge
-      ]
-      coglogo:set-cogniton-value "targetStrength" targetStrength
-      coglogo:set-cogniton-value "targetKnowledge" targetKnowledge
-
-      let environment 0
-      ask patch-here [set environment value / 10]
-      coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge * environment
+      let forceCible 0
+      ask target [set forceCible force]
+      coglogo:activate-cogniton "forceCible"
+      coglogo:set-cogniton-value "forceCible" forceCible
     ] [
-      ;; sinon s'approcher d'un ennemi
-      face min-one-of other humans with [groupId != myGroupId] [distance myself]
+      set color orange
+      face min-one-of cibles [distance myself]
       fd 0.5
 
-      deactivateTarget
+      ;;traitement
+      coglogo:deactivate-cogniton "forceCible"
     ]
   ] [
-    ;; si aucun ennemi est à portée
-    set color originalColor
-    deactivateTarget
+    set color white
     wiggle
   ]
 end
 
-;;si la fatigue est supérieure à l'énergie
-to flee
-  set color originalColor - 20
-  let myGroupId groupId
-
-  deactivateTarget
-
-  ifelse any? other humans with [groupId != myGroupId] in-radius vision [
+to fuir
+  set color yellow
+  coglogo:deactivate-cogniton "agressivité"
+  ifelse any? other humans in-radius vision [
     face min-one-of other humans [distance myself]
     rt 170 + random 20
     fd 0.2
   ]
   [wiggle]
-
-  set energy energy + 1
+  set energie energie + 1
 end
 
-to win
-  set energy energy - 1
-  if target != nobody [
-    ask target [ set life life - 1 ]
+to gagner
+  set energie energie - 1
+  ifelse target != nobody [
+    ask target [ set vie vie - 1 ]
+  ] [
+    coglogo:deactivate-cogniton "agressivité"
   ]
-  deactivateTarget
+
 end
 
-to loose
-  deactivateTarget
+to perdre
+  set energie energie - 1
+  set vie vie - 1
 end
 
-;;utilitaires
-to activateTarget
-  coglogo:activate-cogniton "targetCapacity"
-  coglogo:activate-cogniton "targetStrength"
-  coglogo:activate-cogniton "targetKnowledge"
+;;; CIBLES
+to goCible
+  if vie <= 0 [ die ]
+  coglogo:set-cogniton-value "energie" energie
+  coglogo:set-cogniton-value "repos" (energie-depart - energie)
+  coglogo:set-cogniton-value "force" force
+  run coglogo:choose-next-plan
+  coglogo:report-agent-data
+  ifelse vie < vieTick []
+  [wiggle]
+
+  set vieTick vie
 end
 
-to deactivateTarget
-  coglogo:deactivate-cogniton "targetCapacity"
-  coglogo:deactivate-cogniton "targetStrength"
-  coglogo:deactivate-cogniton "targetKnowledge"
-end
 
 to wiggle
   rt random 70
@@ -244,17 +152,17 @@ GRAPHICS-WINDOW
 16
 -16
 16
-1
-1
+0
+0
 1
 ticks
 30.0
 
 BUTTON
-135
-60
-200
-93
+112
+85
+175
+118
 NIL
 setup
 NIL
@@ -268,25 +176,25 @@ NIL
 1
 
 SLIDER
-10
-100
-200
-133
+25
+136
+197
+169
 population
 population
 0
 100
-14.0
+21.0
 1
 1
 NIL
 HORIZONTAL
 
 BUTTON
-5
-60
-68
-93
+41
+84
+104
+117
 NIL
 go
 T
@@ -300,10 +208,10 @@ NIL
 1
 
 BUTTON
-5
-10
-201
-53
+43
+31
+182
+64
 NIL
 coglogo:openEditor
 NIL
@@ -317,12 +225,12 @@ NIL
 1
 
 SLIDER
-10
-135
-200
-168
-max-strength
-max-strength
+26
+185
+198
+218
+force-max
+force-max
 1
 10
 10.0
@@ -332,12 +240,12 @@ NIL
 HORIZONTAL
 
 SLIDER
-10
-310
+28
+227
 200
-343
-starting-life
-starting-life
+260
+vie-depart
+vie-depart
 1
 50
 15.0
@@ -347,12 +255,12 @@ NIL
 HORIZONTAL
 
 SLIDER
-10
-345
-200
-378
-starting-energy
-starting-energy
+23
+364
+195
+397
+energie-depart
+energie-depart
 1
 100
 50.0
@@ -362,82 +270,16 @@ NIL
 HORIZONTAL
 
 SLIDER
-10
-415
-200
-448
+22
+288
+194
+321
 vision
 vision
 1
 20
-10.5
+8.5
 0.5
-1
-NIL
-HORIZONTAL
-
-BUTTON
-70
-60
-134
-93
-step
-go
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-PLOT
-660
-170
-860
-320
-plot 1
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"humans1" 1.0 0 -2674135 true "" "plot count humans with [groupId = 1]"
-"humans2" 1.0 0 -13345367 true "" "plot count humans with [groupId = 2]"
-
-SLIDER
-10
-170
-200
-203
-max-knowledge
-max-knowledge
-0
-10
-5.0
-0.25
-1
-NIL
-HORIZONTAL
-
-SLIDER
-10
-215
-200
-248
-max-environment
-max-environment
-0
-10
-5.0
-0.25
 1
 NIL
 HORIZONTAL
@@ -801,5 +643,5 @@ true
 Line -7500403 true 150 150 90 180
 Line -7500403 true 150 150 210 180
 @#$#@#$#@
-1
+0
 @#$#@#$#@

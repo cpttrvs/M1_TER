@@ -1,145 +1,261 @@
-; An example of use of the Culturons, the Agent-Group-Role system  to organise leader-followers groups
-; groups emerge by the use of the stochastic decision maker (cognitive scheme settings) which gives the
-; plan "create-group" a small chance to be selected
+extensions [ CogLogo ]
 
-extensions [CogLogo]
-globals [timeGrowth maxGrassHeight minReproduceEnergy]
+breed [ males male ]
+breed [ femelles femelle ]
 
-breed [cows cow]
+males-own [tail-size energie fatigue energie-depart lives parent myfather-ts myfather-s myfather-ed]
+femelles-own [target gestation? largest-tail-size largest-size best-target remaining-ticks lives father-ts father-s father-ed]
 
-cows-own [energy target]
-patches-own [time grass]
+globals [ debugValue ]
 
 to setup
   clear-all
   reset-ticks
-  set timeGrowth 10
-  set maxGrassHeight 130
-  set minReproduceEnergy 30
   coglogo:reset-simulation
 
-  create-cows nCows
-  [ coglogo:init-cognitons
-    set energy 500 + random 250
-    set target nobody
-    set shape "cow"
-    set color white
-    set size 3
-    setxy random-xcor random-ycor]
 
-  ask patches
-  [ set grass (random (maxGrassHeight - 100)) + 100
-    set time random timeGrowth
-    color-patches
+  create-males population-m [
+    set shape "butterfly"
+    set size (random max-size) + 1
+    setxy random-xcor random-ycor
+
+    set tail-size (random max-tail-size) + 1
+    set energie-depart starting-energy + random (size * 10)
+    set energie energie-depart
+    set fatigue 0
+    set lives max-lives
+
+    set color scale-color blue tail-size 0 max-tail-size
+
+    coglogo:init-cognitons
+
+    coglogo:set-cogniton-value "energie" energie
+    coglogo:set-cogniton-value "fatigue" fatigue
   ]
+
+  create-femelles population-f [
+    set shape "butterfly"
+    set color pink
+    set size 2
+    setxy random-xcor random-ycor
+
+    set largest-tail-size 0
+    set largest-size 0
+    set gestation? false
+    set target nobody
+    set best-target nobody
+    set lives max-lives
+
+    coglogo:init-cognitons
+
+    coglogo:set-cogniton-value "largest-tail-size" largest-tail-size
+    coglogo:set-cogniton-value "largest-size" largest-size
+  ]
+
 end
 
 to go
-  ask patches [go-patches color-patches]
-  ask cows [go-cow]
+  ask males [goMales]
+  ask femelles [goFemelles]
+
   tick
+  update-plots
 end
 
-;;;;;; GENERAL
-to wiggle
-  rt random 50
-  lt random 50
-  fd 0.4
+;;; MALES
+to goMales
+  if lives = 0 [ die ]
+  coglogo:set-cogniton-value "energie" energie
+  coglogo:set-cogniton-value "fatigue" fatigue
+
+
+  run coglogo:choose-next-plan
+  coglogo:report-agent-data
+end
+to parade
+  ;set color blue
+  wiggle size / 3
+  set energie energie - 1
+  set fatigue fatigue + 1
 end
 
-to wiggle-leader
-  rt random 5
-  lt random 5
-  fd 0.3
-end
-
-;;;;;;;;; COWS
-to cow-eat
-  ifelse [grass] of patch-here > 0
-  [ifelse [grass] of patch-here - cow-harvest > 0
-  [ ask patch-here [set grass grass - cow-harvest]
-    set energy energy + cow-gain]
-  [ set energy energy + (cow-gain * ([grass] of patch-here / cow-harvest))
-      ask patch-here [set grass 0]]]
-  [wiggle]
+to repos
   ;set color white
+  wiggle size / 5
+  set fatigue fatigue + 1
+  if fatigue = energie-depart
+  [ set fatigue 0
+    set lives lives - 1
+    set energie energie-depart ]
+
 end
 
-to go-cow
-  set energy energy - cow-energy-consumption
-  if energy <= 0 [die]
-  coglogo:set-cogniton-value "energy" energy
-  show-id
+;;; FEMELLES
+to goFemelles
+
+  if lives = 0 [ die ]
+  if remaining-ticks < 0 [ set remaining-ticks 0 ]
+
+  ifelse gestation? = true [ gestation ]
+  [ set color pink
+    set remaining-ticks gestation-time ]
+
+  ;;detection du male, si il a des atouts plus important que ceux en mémoire, alors le stocker en tant que meilleur male
+  ;;si n'est pas en gestation, alors on affecte tail-size et size, qui débloque le plan "mate"
+  ;;sinon ignore
+  if any? males in-cone vision angle [
+    set target one-of males in-cone vision angle
+    let target-tail-size 0
+    let target-size 0
+    ask target [
+      set target-tail-size tail-size
+      set target-size size
+    ]
+
+    let keep? false
+    if target-tail-size >= largest-tail-size [
+      set largest-tail-size target-tail-size
+      set keep? true
+    ]
+
+    ifelse target-size >= largest-size [
+      set largest-size target-size
+    ] [ set keep? false ]
+
+    if keep? = true
+    [ set best-target target ]
+
+    if gestation? = false [
+      coglogo:activate-cogniton "tail-size"
+      coglogo:activate-cogniton "size"
+      coglogo:set-cogniton-value "tail-size" target-tail-size
+      coglogo:set-cogniton-value "size" target-size
+    ]
+  ]
+
+  coglogo:set-cogniton-value "largest-tail-size" largest-tail-size
+  coglogo:set-cogniton-value "largest-size" largest-size
+
+
+
   run coglogo:choose-next-plan
   coglogo:report-agent-data
 end
 
-to look-for-group
-  ifelse any? other cows in-radius (cow-detect-radius)
-  [ let id -1.0
-    ask min-one-of other cows [distance myself] [set id coglogo:get-group-role-id "herd" "leader"]
-    if id != -1
-    [coglogo:leave-group "herd"
-     coglogo:join-group "herd" "follower" id
-     coglogo:set-participation "herd" 4.0
-     set target min-one-of other cows [distance myself]
-     set color blue ]]
-  [wiggle
-   set color sky]
-end
-
-to create-group
-  coglogo:leave-group "herd"
-  coglogo:create-and-join-group "herd" "leader"
-  coglogo:set-participation "herd" 4.0
-  set target nobody
-  set color pink
-end
-
-to lead-herd
+;;se dirige vers le male
+;;si le male est adjacent, alors gestation? true
+to mate
   set color red
-  wiggle-leader
+  ifelse target = nobody [ coglogo:deactivate-cogniton "size" ]
+  [
+    set heading towards target
+    fd 1
+    if any? males-on neighbors [
+      let ok? false
+      let tmptarget target
+      ask males-on neighbors [ if tmptarget = self [ set ok? true ] ]
+      if ok? = true [
+        set gestation? true
+        set remaining-ticks gestation-time
+
+        ;;conservation des atouts pour la gestation (et gain d'une vie pour observation la conversation des atouts)
+        let tmpts 0
+        let tmps 0
+        let tmped 0
+        ask males-on neighbors [
+          if tmptarget = self [
+            set tmpts tail-size
+            set tmps size
+            set tmped energie-depart
+            set lives lives + 1
+          ]
+        ]
+        set father-ts tmpts
+        set father-s tmps
+        set father-ed tmped
+
+        set debugValue debugValue + 1
+      ]
+    ]
+  ]
 end
 
-to follow-leader
-  set color blue
-  ifelse target != nobody
-  [let targetId -1.0
-    ask target [set targetId coglogo:get-group-role-id "herd" "leader"]
-    ifelse targetId = -1.0
-    [coglogo:leave-group "herd"]
-    [face target
-     fd 0.5]]
-  [coglogo:leave-group "herd"]
+to ignore
+  if gestation? = false [set color pink]
+  wiggle 0.5
 end
 
-to show-id
-  set label who
+to gestation
+
+   set color grey
+   coglogo:deactivate-cogniton "tail-size"
+   coglogo:deactivate-cogniton "size"
+   set remaining-ticks remaining-ticks - 1
+
+   if remaining-ticks <= 0 [
+      ifelse random 2 = 0
+      [ hatch-males 1 [
+        set parent myself
+        set myfather-ts [father-ts] of parent
+        set myfather-s [father-s] of parent
+        set myfather-ed [father-ed] of parent
+        create-breed-male
+      ]] [
+      hatch-femelles 1 [
+        set largest-tail-size 0
+        set largest-size 0
+        set gestation? false
+        set target nobody
+        set best-target nobody
+        set lives max-lives
+      ]
+    ]
+      set gestation? false
+      set lives lives - 1
+      set remaining-ticks gestation-time
+    ]
+
 end
 
-;;;;;;;; PATCHES
-to go-patches
-  set time  time + 1
-  if time > timeGrowth
-  [set time 0
-    if grass < maxGrassHeight[
-      set grass grass + 1]]
+
+;;utilitaires
+to wiggle [move]
+  rt random 70
+  lt random 70
+  fd move
 end
 
-to color-patches
-  set pcolor rgb 0 grass 0
+to create-breed-male
+    set shape "butterfly"
+    set size myfather-s + 0.2
+    setxy random-xcor random-ycor
+
+    set tail-size myfather-ts + 5
+    set energie-depart myfather-ed
+    set energie energie-depart
+    set fatigue 0
+    set lives max-lives
+
+    let highest-ts 0
+  ask males [ if tail-size > highest-ts [ set highest-ts tail-size ] ]
+    set color scale-color blue tail-size 0 highest-ts
+
+    coglogo:init-cognitons
+
+    coglogo:set-cogniton-value "energie" energie
+    coglogo:set-cogniton-value "fatigue" fatigue
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-724
-525
+728
+529
 -1
 -1
-8.3
+10.0
 1
-15
+10
 1
 1
 1
@@ -147,55 +263,21 @@ GRAPHICS-WINDOW
 1
 1
 1
--30
-30
--30
-30
+-25
+25
+-25
+25
 1
 1
 1
 ticks
-15.0
+30.0
 
 BUTTON
-0
-10
-205
-43
-edit cognitons
-coglogo:openEditor
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-0
-45
-90
-78
-NIL
-go\n
-T
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-120
-45
-205
-78
+135
+55
+200
+88
 NIL
 setup
 NIL
@@ -209,121 +291,225 @@ NIL
 1
 
 SLIDER
-0
-85
-205
-118
-nCows
-nCows
-0
-50
-16.0
+745
+25
+935
+58
+population-m
+population-m
 1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-0
-205
-205
-238
-cow-detect-radius
-cow-detect-radius
-0
-10
-7.3
-.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-0
-240
-205
-273
-cow-energy-consumption
-cow-energy-consumption
-0
-1
-0.76
-0.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-0
-275
-205
-308
-cow-harvest
-cow-harvest
-40
 100
-77.0
+10.0
+1
+1
+NIL
+HORIZONTAL
+
+BUTTON
+5
+55
+68
+88
+NIL
+go
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+BUTTON
+5
+10
+201
+53
+NIL
+coglogo:openEditor
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+5
+110
+195
+143
+vision
+vision
+1
+20
+4.0
+0.5
+1
+NIL
+HORIZONTAL
+
+BUTTON
+70
+55
+134
+88
+step
+go
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+PLOT
+5
+235
+205
+385
+number of agents
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"femelles" 1.0 0 -2064490 true "" "plot count femelles"
+"males" 1.0 0 -13345367 true "" "plot count males"
+
+MONITOR
+80
+435
+157
+480
+NIL
+debugValue
+17
+1
+11
+
+SLIDER
+740
+255
+930
+288
+population-f
+population-f
+0
+100
+5.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
+755
+65
+927
+98
+max-size
+max-size
 0
-310
-205
-343
-cow-gain
-cow-gain
-0.1
-20
-6.2
-0.1
+5
+2.5
+0.5
 1
 NIL
 HORIZONTAL
 
-PLOT
-725
-10
-965
-305
-cows
+SLIDER
+755
+105
+927
+138
+max-tail-size
+max-tail-size
+0
+100
+50.0
+1
+1
 NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot count cows"
+HORIZONTAL
 
-PLOT
-725
-305
-965
-545
-leaders
+SLIDER
+755
+140
+927
+173
+starting-energy
+starting-energy
+0
+100
+100.0
+1
+1
 NIL
+HORIZONTAL
+
+SLIDER
+760
+300
+932
+333
+gestation-time
+gestation-time
+0
+100
+54.0
+1
+1
 NIL
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot count cows with [coglogo:get-group-role-id \"herd\" \"leader\" >= 0]"
+HORIZONTAL
+
+SLIDER
+15
+150
+187
+183
+angle
+angle
+0
+360
+195.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+755
+195
+927
+228
+max-lives
+max-lives
+1
+5
+2.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
 
-An example of use of the Culturons, the Agent-Group-Role system  to organise leader-followers groups.
-Groups emerge by the use of the stochastic decision maker (cognitive scheme settings) which gives the plan "create-group" a small chance to be selected
+(a general understanding of what the model is trying to show or explain)
 
 ## HOW IT WORKS
 
