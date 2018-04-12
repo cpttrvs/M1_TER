@@ -1,0 +1,60 @@
+;;;;;;;;;;;;;;;;partie interaction (combat)
+
+;;;;;;;;;;;;;;combat
+
+to win
+  set energy energy - 1
+
+  if target != nobody [
+    ;;la valeur de parade de la cible doit battre la valeur aléatoire
+    let parry? random 100
+    let parry-dest 0
+    ask target [ set parry-dest parry ]
+    ifelse parry? < parry-dest [
+      ;;si la cible pare
+      ask target [ activateParry ]
+    ] [
+      ;;si la cible n'a pas paré
+      ask target [
+        set hasParried? false
+        set life life - 1
+      ]
+    ]
+  ]
+
+  deactivateTarget
+  deactivateParry
+end
+
+to lose
+  set energy energy - 1
+
+  deactivateTarget
+end
+
+;;;;;; utilitaires d'interaction
+
+;;initialisation des cognitons pour l'intéraction
+to initInteraction
+      activateTarget
+
+      let targetStrength 0
+      let targetKnowledge 0
+      ask target [
+        set targetStrength strength
+        set targetKnowledge fieldKnowledge
+      ]
+
+      coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge
+
+      ask target [ deactivateParry ]
+end
+
+to activateTarget
+  coglogo:activate-cogniton "targetCapacity"
+end
+
+to deactivateTarget
+  coglogo:deactivate-cogniton "targetCapacity"
+end
+

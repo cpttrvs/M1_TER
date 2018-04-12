@@ -1,0 +1,101 @@
+; possible values for environmentType :
+; 0 -> standard environment
+; 1 -> desert
+; 2 -> forest
+; 3 -> mountain
+; 4 -> river
+to initEnvironment
+  
+  ;;init gobals variables
+  set default 0
+  set desert 1
+  set desertColor yellow
+  set forest 2
+  set forestColor green
+  set mountain 3
+  set mountainColor grey
+  set lake 4
+  set lakeColor blue
+  
+  ;;init desert
+  ask one-of patches with [environmentType = default and base = 0]
+  [spreadEnvironment desert desertColor 200]
+
+  ;;init forest
+  ask one-of patches with [environmentType = default and base = 0]
+  [spreadEnvironment forest forestColor 200]
+  
+  ;;init desert
+  ask one-of patches with [environmentType = default and base = 0]
+  [spreadEnvironment mountain mountainColor 200]
+  
+  ;;init desert
+  ask one-of patches with [environmentType = default and base = 0]
+  [spreadEnvironment lake lakeColor 200]
+end
+
+to spreadEnvironment [ envType envColor nb_iter ]
+  set environmentType envType
+  set pcolor envColor
+  ifelse (envType = desert)
+    [ set buffValue buff-give-by-beach ]
+    [ ifelse (envType = forest)
+      [ set buffValue buff-give-by-forest ]
+      [ ifelse (envType = mountain)
+      [ set buffValue buff-give-by-mountain ]
+      [ set buffValue buff-give-by-lake ] ] ]
+  ifelse (nb_iter > 0)
+  [ ask one-of patches with [environmentType = default and one-of neighbors4 with [environmentType = envType] != nobody ]
+    [ spreadEnvironment envType envColor (nb_iter - 1) ] ]
+  [ ask patches with [ pcolor = black and count neighbors4 with [ pcolor = envColor] > 1]
+    [ set pcolor envColor] ]
+end
+
+to initBase
+  ask patch -18 -18
+  [ set base 1
+    set pcolor white ]
+  ask patch 18 18
+  [ set base 2
+    set pcolor red ]
+end
+
+; possible values for alteration
+; 0 -> no modification
+; 1 -> trench
+; 2 -> //TODO
+;; idea : Faire des mofication de terrain de taille supérieur à 1 patch -> ex : tranché = 3 cases face à l'agent
+to modifyEnvironment [ modifType ]
+  set alteration modifType
+; set pcolor
+end
+
+;;turtle procedure to get the correct field knowledge depending on the environment it is standing on
+; 1 desert, 2 forest, 3 mountain
+to-report getFieldKnowledge
+  let environment 0
+  let tmpFieldKnowledge 0
+  ask patch-here [
+    ifelse (environmentType = desert) [ 
+      set environment buffValue
+      set tmpFieldKnowledge 1
+    ] [ ifelse (environmentType = forest) [ 
+        set environment buffValue
+        set tmpFieldKnowledge 2
+      ] [ ifelse (environmentType = mountain) [ 
+        set environment buffValue
+        set tmpFieldKnowledge 3
+        ]
+      [ set environment buffValue ] ] ]
+  ]
+  set environment environment / 10
+  if (tmpFieldKnowledge = 1) 
+  [ set fieldKnowledge desertKnowledge ]
+  if (tmpFieldKnowledge = 2) 
+  [ set fieldKnowledge forestKnowledge ]
+  if (tmpFieldKnowledge = 3) 
+  [ set fieldKnowledge mountainKnowledge ]
+  
+  set fieldKnowledge fieldKnowledge * environment
+  report fieldKnowledge
+end
