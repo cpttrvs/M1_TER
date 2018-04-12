@@ -36,18 +36,19 @@ end
 
 ;;initialisation des cognitons pour l'intéraction
 to initInteraction
-      activateTarget
+  activateTarget
 
-      let targetStrength 0
-      let targetKnowledge 0
-      ask target [
-        set targetStrength strength
-        set targetKnowledge fieldKnowledge
-      ]
+  let targetStrength 0
+  let targetKnowledge 0
+  
+  ask target [
+    set targetStrength strength
+    set targetKnowledge fieldKnowledge
+  ]
 
-      coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge
+  coglogo:set-cogniton-value "targetCapacity" targetStrength + targetKnowledge
 
-      ask target [ deactivateParry ]
+  ask target [ deactivateParry ]
 end
 
 to activateTarget

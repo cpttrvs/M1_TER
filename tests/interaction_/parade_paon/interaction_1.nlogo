@@ -6,7 +6,7 @@ breed [ femelles femelle ]
 males-own [tail-size energie fatigue energie-depart lives parent myfather-ts myfather-s myfather-ed]
 femelles-own [target gestation? largest-tail-size largest-size best-target remaining-ticks lives father-ts father-s father-ed]
 
-globals [ debugValue ]
+globals [ timerUpdate averageTailSize averageSize ]
 
 to setup
   clear-all
@@ -14,7 +14,7 @@ to setup
   coglogo:reset-simulation
 
 
-  create-males population-m [
+  create-males population-males [
     set shape "butterfly"
     set size (random max-size) + 1
     setxy random-xcor random-ycor
@@ -33,7 +33,7 @@ to setup
     coglogo:set-cogniton-value "fatigue" fatigue
   ]
 
-  create-femelles population-f [
+  create-femelles population-females [
     set shape "butterfly"
     set color pink
     set size 2
@@ -57,6 +57,8 @@ end
 to go
   ask males [goMales]
   ask femelles [goFemelles]
+
+  monitorPlots
 
   tick
   update-plots
@@ -104,6 +106,7 @@ to goFemelles
   ;;si n'est pas en gestation, alors on affecte tail-size et size, qui débloque le plan "mate"
   ;;sinon ignore
   if any? males in-cone vision angle [
+    ;;on demande les atouts du male observé
     set target one-of males in-cone vision angle
     let target-tail-size 0
     let target-size 0
@@ -112,6 +115,7 @@ to goFemelles
       set target-size size
     ]
 
+    ;;si les atouts sont supérieurs à ceux en mémoire, on le garde
     let keep? false
     if target-tail-size >= largest-tail-size [
       set largest-tail-size target-tail-size
@@ -125,6 +129,7 @@ to goFemelles
     if keep? = true
     [ set best-target target ]
 
+    ;;on actualise les cognitons du male observé
     if gestation? = false [
       coglogo:activate-cogniton "tail-size"
       coglogo:activate-cogniton "size"
@@ -133,6 +138,7 @@ to goFemelles
     ]
   ]
 
+  ;;on actualise (ou non) les cognitons du meilleur male en mémoire
   coglogo:set-cogniton-value "largest-tail-size" largest-tail-size
   coglogo:set-cogniton-value "largest-size" largest-size
 
@@ -173,8 +179,6 @@ to mate
         set father-ts tmpts
         set father-s tmps
         set father-ed tmped
-
-        set debugValue debugValue + 1
       ]
     ]
   ]
@@ -195,6 +199,7 @@ to gestation
    if remaining-ticks <= 0 [
       ifelse random 2 = 0
       [ hatch-males 1 [
+      ;;conservation de la genetique du père
         set parent myself
         set myfather-ts [father-ts] of parent
         set myfather-s [father-s] of parent
@@ -202,6 +207,7 @@ to gestation
         create-breed-male
       ]] [
       hatch-femelles 1 [
+      ;;initialisation des critères de la nouvelle femelle
         set largest-tail-size 0
         set largest-size 0
         set gestation? false
@@ -225,6 +231,7 @@ to wiggle [move]
   fd move
 end
 
+;;initialise les caractères du male en fonction de son père (appel lors de la gestation)
 to create-breed-male
     set shape "butterfly"
     set size myfather-s + 0.2
@@ -244,6 +251,28 @@ to create-breed-male
 
     coglogo:set-cogniton-value "energie" energie
     coglogo:set-cogniton-value "fatigue" fatigue
+end
+
+;;met à jour les plots "average"
+to monitorPlots
+  ifelse timerUpdate > update-frequency [
+    set averageSize 0
+    set averageTailSize 0
+
+    ask males [
+      set averageSize averageSize + size
+      set averageTailSize averageTailSize + tail-size
+    ]
+
+    if count males > 0
+    [
+      set averageSize averageSize / (count males)
+      set averageTailSize averageTailSize / (count males)
+    ]
+
+    set timerUpdate 0
+  ] [set timerUpdate timerUpdate + 1]
+
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -291,12 +320,12 @@ NIL
 1
 
 SLIDER
-745
-25
-935
-58
-population-m
-population-m
+5
+100
+195
+133
+population-males
+population-males
 1
 100
 10.0
@@ -341,14 +370,14 @@ NIL
 
 SLIDER
 5
-110
+250
 195
-143
+283
 vision
 vision
 1
 20
-4.0
+6.0
 0.5
 1
 NIL
@@ -372,10 +401,10 @@ NIL
 1
 
 PLOT
-5
-235
-205
-385
+740
+15
+940
+165
 number of agents
 NIL
 NIL
@@ -390,37 +419,26 @@ PENS
 "femelles" 1.0 0 -2064490 true "" "plot count femelles"
 "males" 1.0 0 -13345367 true "" "plot count males"
 
-MONITOR
-80
-435
-157
-480
-NIL
-debugValue
-17
-1
-11
-
 SLIDER
-740
-255
-930
-288
-population-f
-population-f
+5
+135
+195
+168
+population-females
+population-females
 0
 100
-5.0
+6.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-755
-65
-927
-98
+5
+335
+195
+368
 max-size
 max-size
 0
@@ -432,10 +450,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-755
-105
-927
-138
+5
+370
+195
+403
 max-tail-size
 max-tail-size
 0
@@ -447,10 +465,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-755
-140
-927
-173
+5
+175
+195
+208
 starting-energy
 starting-energy
 0
@@ -462,10 +480,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-760
-300
-932
-333
+5
+415
+195
+448
 gestation-time
 gestation-time
 0
@@ -477,10 +495,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-15
-150
-187
-183
+5
+285
+195
+318
 angle
 angle
 0
@@ -492,10 +510,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-755
+5
+210
 195
-927
-228
+243
 max-lives
 max-lives
 1
@@ -505,6 +523,57 @@ max-lives
 1
 NIL
 HORIZONTAL
+
+SLIDER
+740
+185
+940
+218
+update-frequency
+update-frequency
+1
+100
+10.0
+1
+1
+NIL
+HORIZONTAL
+
+PLOT
+740
+220
+940
+370
+average size
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot averageSize"
+
+PLOT
+740
+375
+940
+525
+average tail size
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot averageTailSize"
 
 @#$#@#$#@
 ## WHAT IS IT?
