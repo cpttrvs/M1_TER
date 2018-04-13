@@ -45,9 +45,9 @@ to spreadEnvironment [ envType envColor nb_iter ]
       [ set effectValue mountain-effect ]
       [ set effectValue lake-effect ] ] ]
   ifelse (nb_iter > 0)
-  [ let p one-of patches with [environmentType = default and one-of neighbors4 with [environmentType = envType]
+  [ let p one-of patches with [environmentType = default and one-of neighbors4 with [environmentType = envType] != nobody ]
     if p != nobody
-    [ ask p [ spreadEnvironment envType envColor (nb_iter - 1) ] ] ] ]
+    [ ask p [ spreadEnvironment envType envColor (nb_iter - 1) ] ] ]
   [ ask patches with [ pcolor = black and count neighbors4 with [ pcolor = envColor] > 1]
     [ set pcolor envColor] ]
 end

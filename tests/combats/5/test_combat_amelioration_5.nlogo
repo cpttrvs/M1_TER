@@ -30,7 +30,6 @@ globals [ timerUpdate
 
 to setup
   clear-all
-  reset-ticks
   coglogo:reset-simulation
 
   ask patches
@@ -46,7 +45,9 @@ to setup
   repeat population [initHuman 1 red]
   repeat population [initHuman 2 blue]
 
-  update-plots
+  set timerUpdate update-frequency
+
+  reset-ticks
 end
 
 to go
@@ -139,13 +140,14 @@ end
 ;;;; utilitaires
 
 to initHuman [group humanColor]
-    create-humans 1 [
+  ;;sprout un humain en dehors de l'eau
+  ask one-of patches with [environmentType != 4] [
+    sprout-humans 1 [
     ;;gestion netlogo
     set shape "person"
     set color humanColor
     set originalColor color
     set size 2
-    setxy random-xcor random-ycor
 
     set strength (random max-strength) + 1
     set startingStrength strength
@@ -175,6 +177,7 @@ to initHuman [group humanColor]
     set forestKnowledge (random env-knowledge) + 1
     set mountainKnowledge (random env-knowledge) + 1
     set fieldKnowledge 0
+  ]
   ]
 end
 
@@ -360,7 +363,7 @@ max-strength
 max-strength
 1
 10
-10.0
+5.0
 0.25
 1
 NIL
@@ -368,9 +371,9 @@ HORIZONTAL
 
 SLIDER
 5
-270
+230
 195
-303
+263
 starting-life
 starting-life
 1
@@ -383,14 +386,14 @@ HORIZONTAL
 
 SLIDER
 5
-300
+260
 195
-333
+293
 starting-energy
 starting-energy
 1
 100
-49.0
+50.0
 1
 1
 NIL
@@ -398,14 +401,14 @@ HORIZONTAL
 
 SLIDER
 5
-330
+290
 195
-363
+323
 vision
 vision
 1
 20
-4.0
+5.0
 0.5
 1
 NIL
@@ -449,24 +452,9 @@ PENS
 
 SLIDER
 5
-150
+160
 195
-183
-max-knowledge
-max-knowledge
-0
-10
-5.0
-0.25
-1
-NIL
-HORIZONTAL
-
-SLIDER
-5
-195
-195
-228
+193
 parry-chance
 parry-chance
 0
@@ -479,24 +467,24 @@ HORIZONTAL
 
 SLIDER
 5
-225
+190
 195
-258
+223
 variance-parry-chance
 variance-parry-chance
 0
 20
-10.0
+15.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-15
-385
-187
-418
+5
+365
+195
+398
 beach-effect
 beach-effect
 0
@@ -508,60 +496,60 @@ NIL
 HORIZONTAL
 
 SLIDER
-15
-415
-187
-448
+5
+395
+195
+428
 forest-effect
 forest-effect
-0
-10
-3.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-15
-445
-187
-478
-mountain-effect
-mountain-effect
-0
-10
-3.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-15
-475
-187
-508
-lake-effect
-lake-effect
-0
-10
-0.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-15
-525
-187
-558
-env-knowledge
-env-knowledge
 0
 10
 5.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+5
+425
+195
+458
+mountain-effect
+mountain-effect
+0
+10
+4.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+5
+455
+195
+488
+lake-effect
+lake-effect
+0
+10
+2.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+5
+330
+195
+363
+env-knowledge
+env-knowledge
+0
+10
+4.0
 0.5
 1
 NIL
@@ -583,9 +571,9 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot averageStrength"
-"blue" 1.0 0 -14070903 true "" "plot averageStrengthBlue"
-"red" 1.0 0 -2674135 true "" "plot averageStrengthRed"
+"default" 1.0 0 -16777216 true "" "if ticks > 3 [plot averageStrength]"
+"blue" 1.0 0 -14070903 true "" "if ticks > 3 [plot averageStrengthBlue]"
+"red" 1.0 0 -2674135 true "" "if ticks > 3 [plot averageStrengthRed]"
 
 PLOT
 735
@@ -603,9 +591,9 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot averageParry"
-"pen-1" 1.0 0 -14070903 true "" "plot averageParryBlue"
-"pen-2" 1.0 0 -2674135 true "" "plot averageParryRed"
+"default" 1.0 0 -16777216 true "" "if ticks > 3 [plot averageParry]"
+"pen-1" 1.0 0 -14070903 true "" "if ticks > 3 [plot averageParryBlue]"
+"pen-2" 1.0 0 -2674135 true "" "if ticks > 3 [plot averageParryRed]"
 
 SLIDER
 735
@@ -616,22 +604,22 @@ update-frequency
 update-frequency
 1
 50
-34.0
+18.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-215
-530
-387
-563
+5
+505
+195
+538
 max-trench-time
 max-trench-time
 0
 100
-20.0
+24.0
 1
 1
 NIL
