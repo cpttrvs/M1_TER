@@ -19,34 +19,35 @@ to initEnvironment
   
   ;;init desert
   ask one-of patches with [environmentType = default and base = 0]
-  [spreadEnvironment desert desertColor 200]
+  [spreadEnvironment desert desertColor 300]
 
   ;;init forest
   ask one-of patches with [environmentType = default and base = 0]
-  [spreadEnvironment forest forestColor 200]
+  [spreadEnvironment forest forestColor 300]
   
   ;;init desert
   ask one-of patches with [environmentType = default and base = 0]
-  [spreadEnvironment mountain mountainColor 200]
+  [spreadEnvironment mountain mountainColor 300]
   
   ;;init desert
   ask one-of patches with [environmentType = default and base = 0]
-  [spreadEnvironment lake lakeColor 200]
+  [spreadEnvironment lake lakeColor 300]
 end
 
 to spreadEnvironment [ envType envColor nb_iter ]
   set environmentType envType
   set pcolor envColor
   ifelse (envType = desert)
-    [ set buffValue buff-give-by-beach ]
+    [ set effectValue beach-effect ]
     [ ifelse (envType = forest)
-      [ set buffValue buff-give-by-forest ]
+      [ set effectValue forest-effect ]
       [ ifelse (envType = mountain)
-      [ set buffValue buff-give-by-mountain ]
-      [ set buffValue buff-give-by-lake ] ] ]
+      [ set effectValue mountain-effect ]
+      [ set effectValue lake-effect ] ] ]
   ifelse (nb_iter > 0)
-  [ ask one-of patches with [environmentType = default and one-of neighbors4 with [environmentType = envType] != nobody ]
-    [ spreadEnvironment envType envColor (nb_iter - 1) ] ]
+  [ let p one-of patches with [environmentType = default and one-of neighbors4 with [environmentType = envType]
+    if p != nobody
+    [ ask p [ spreadEnvironment envType envColor (nb_iter - 1) ] ] ] ]
   [ ask patches with [ pcolor = black and count neighbors4 with [ pcolor = envColor] > 1]
     [ set pcolor envColor] ]
 end
@@ -77,16 +78,16 @@ to-report getFieldKnowledge
   let tmpFieldKnowledge 0
   ask patch-here [
     ifelse (environmentType = desert) [ 
-      set environment buffValue
+      set environment effectValue
       set tmpFieldKnowledge 1
     ] [ ifelse (environmentType = forest) [ 
-        set environment buffValue
+        set environment effectValue
         set tmpFieldKnowledge 2
       ] [ ifelse (environmentType = mountain) [ 
-        set environment buffValue
+        set environment effectValue
         set tmpFieldKnowledge 3
         ]
-      [ set environment buffValue ] ] ]
+      [ set environment effectValue ] ] ]
   ]
   set environment environment / 10
   if (tmpFieldKnowledge = 1) 

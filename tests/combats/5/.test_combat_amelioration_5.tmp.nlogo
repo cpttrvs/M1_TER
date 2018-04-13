@@ -41,7 +41,7 @@ to setup
     set effectValue 0 ]
 
   initEnvironment
-  ;;initBase
+  ;initBase
 
   repeat population [initHuman 1 red]
   repeat population [initHuman 2 blue]
