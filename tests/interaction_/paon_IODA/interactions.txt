@@ -1,0 +1,47 @@
+; This file can be used to define your own interactions.
+; SYNTAX:
+; [EXCLUSIVE|PARALLEL] INTERACTION <name>
+; [TRIGGER <tr1> ... <tr_n>]
+; [...]
+; [TRIGGER <tr'1> ... <tr'_n>]
+; [CONDITION <cond1> ... <cond_n>]
+; [...]
+; [CONDITION <cond'1> ... <cond'_n>]
+; [ACTIONS <act1> ... <act_n>]
+; END
+;
+; NB1: tr_i and cond_i are abstract condition primitives,
+; which must be implemented by concrete reporters, while
+; act_i are abstract action primitives, which must be
+; implemented by concrete commands.
+;
+; NB2: any non-letter, non-digit character at the beginning
+; of the line introduces a comment line. Empty lines are ignored.
+;
+
+exclusive interaction Move
+  actions   Move
+end
+
+exclusive interaction Parader
+  actions   Parader
+end
+
+exclusive interaction Rest
+  condition exhausted?
+  actions   Rest
+end
+
+exclusive interaction Gestation
+	condition Gestation?
+  actions   Gestation
+end
+
+exclusive interaction Mate
+  actions   Mate 
+end
+
+exclusive interaction Die
+	condition dead?
+	actions die
+end

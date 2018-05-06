@@ -1,0 +1,70 @@
+; This file can be used to define your own interaction
+; matrix and update matrix.
+; SYNTAX:
+; <source> <interaction> <priority>
+; OR: <source> <interaction> <priority> UPDATE
+; OR: <source> <interaction> <priority> <target> <distance> [<target-selection-policy>]
+;
+; By default, each line is added to the appropriate matrix.
+; Lines starting with a '-' character are removed from the appropriate matrix.
+; Lines starting with a '+' character are added to the appropriate matrix ('+' is optional).
+;
+; NB1: this file is read as a CSV file, thus you can use any field separator char 
+; since you put it in the second argument of the ioda:load-matrices command.
+;
+; NB2: any non-letter, non-digit, non '+'/'-' character at the beginning
+; of the line introduces a comment line. Empty lines are ignored.
+;
+
+Swordmans Move 0
+Swordmans Rest 5
+Swordmans Rush 8 Swordmans 20
+Swordmans Rush 8 Axemans 20
+Swordmans Rush 8 Lancers 20
+Swordmans Attack 10 Swordmans 5
+Swordmans Attack 10 Axemans 5
+Swordmans Attack 10 Lancers 5
+Swordmans Flee 15 Swordmans 5
+Swordmans Flee 15 Lancers 5
+Swordmans Flee 15 Axemans 5
+Swordmans Rush 19 Bowies 20
+Swordmans Attack 20 Bowies 5
+Swordmans die 50 UPDATE
+
+Lancers Move 0
+Lancers Rest 5
+Lancers Rush 8 Swordmans 20
+Lancers Rush 8 Axemans 20
+Lancers Rush 8 Lancers 20
+Lancers Attack 10 Swordmans 7
+Lancers Attack 10 Axemans 7
+Lancers Attack 10 Lancers 7
+Lancers Flee 15 Swordmans 5
+Lancers Flee 15 Lancers 5
+Lancers Flee 15 Axemans 5
+Lancers Rush 19 Bowies 20
+Lancers Attack 20 Bowies 7
+Lancers die 50 UPDATE
+
+Axemans Move 0
+Axemans Rest 5
+Axemans Rush 8 Swordmans 20
+Axemans Rush 8 Axemans 20
+Axemans Rush 8 Lancers 20
+Axemans Attack 10 Swordmans 4
+Axemans Attack 10 Axemans 4
+Axemans Attack 10 Lancers 4
+Axemans Rush 19 Bowies 20
+Axemans Attack 20 Bowies 4
+Axemans die 50 UPDATE
+
+Bowies Move 0
+Bowies Rest 5
+Bowies Shoot 10 Swordmans 20
+Bowies Shoot 10 Axemans 20
+Bowies Shoot 10 Lancers 20
+Bowies Shoot 20 Bowies 20
+Bowies Flee 25 Swordmans 10
+Bowies Flee 25 Lancers 10
+Bowies Flee 25 Axemans 10
+Bowies die 50 UPDATE
