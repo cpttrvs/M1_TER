@@ -1,70 +1,129 @@
-extensions [ CogLogo ]
+extensions [CogLogo]
 
-__includes [
-  "environment_init.nls"
-  "lumberjacks.nls"
-  "miners.nls"
-  "builders.nls"
-]
-
-breed [ lumberjacks lumberjack ]
-breed [ builders builder ]
-breed [ miners miner ]
-
-patches-own [ environmentType ]
-
-globals [ default forest mountain forestColor mountainColor ]
+breed [humans human]
+breed [cibles cible]
+humans-own [force vie energie target]
+cibles-own [force vie energie vieTick]
 
 to setup
   clear-all
   reset-ticks
-  coglogo:reset-simulation
 
-  initEnvironment
-
-  let spawnX random-xcor
-  let spawnY random-ycor
-
-
-  create-lumberjacks population-lumberjacks [
-    setxy spawnX spawnY
+  create-humans population [
     coglogo:init-cognitons
+    set shape "person"
+    set color white
+    set size 2
+    setxy random-xcor random-ycor
+    set force (random force-max)
+    set vie vie-depart
+    set energie energie-depart
   ]
 
-  create-builders population-builders [
-    setxy spawnX spawnY
+  create-cibles population [
     coglogo:init-cognitons
-  ]
-
-  create-miners population-miners [
-    setxy spawnX spawnY
-    coglogo:init-cognitons
+    set shape "person"
+    set color blue
+    set size 2
+    setxy random-xcor random-ycor
+    set force (random force-max)
+    set vie vie-depart
+    set energie energie-depart
+    set vieTick vie
   ]
 
 end
 
 to go
-  ask lumberjacks [goLumberjack]
-  ask builders [goBuilder]
-  ask miners [goMiner]
+  ask humans [goTurtle]
+  ask cibles [goCible]
   tick
   update-plots
 end
 
-to goLumberjack
+;;; HUMANS
+;si energie > repos, attaque sinon fuite
+to goTurtle
+  if vie <= 0 [ die ]
+  coglogo:set-cogniton-value "energie" energie
+  coglogo:set-cogniton-value "repos" (energie-depart - energie)
+  coglogo:set-cogniton-value "force" force
   run coglogo:choose-next-plan
   coglogo:report-agent-data
 end
 
-to goBuilder
-  run coglogo:choose-next-plan
-  coglogo:report-agent-data
+
+to attaque
+  set target nobody
+
+  ifelse any? cibles in-radius vision [
+    ifelse one-of cibles-here != nobody [
+      set color red
+      set target one-of cibles-here
+
+      ;;traitement
+      coglogo:activate-cogniton "agressivité"
+      coglogo:feed-back-from-plan "attaque" energie
+
+      let forceCible 0
+      ask target [set forceCible force]
+      coglogo:activate-cogniton "forceCible"
+      coglogo:set-cogniton-value "forceCible" forceCible
+    ] [
+      set color orange
+      face min-one-of cibles [distance myself]
+      fd 0.5
+
+      ;;traitement
+      coglogo:deactivate-cogniton "forceCible"
+    ]
+  ] [
+    set color white
+    wiggle
+  ]
 end
 
-to goMiner
+to fuir
+  set color yellow
+  coglogo:deactivate-cogniton "agressivité"
+  ifelse any? other humans in-radius vision [
+    face min-one-of other humans [distance myself]
+    rt 170 + random 20
+    fd 0.2
+  ]
+  [wiggle]
+  set energie energie + 1
+end
+
+to gagner
+  set energie energie - 1
+  ifelse target != nobody [
+    ask target [ set vie vie - 1 ]
+  ] [
+    coglogo:deactivate-cogniton "agressivité"
+  ]
+
+end
+
+to perdre
+  set energie energie - 1
+  set vie vie - 1
+end
+
+;;; CIBLES
+to goCible
+  if vie <= 0 [ die ]
+  coglogo:set-cogniton-value "energie" energie
+  coglogo:set-cogniton-value "repos" (energie-depart - energie)
+  coglogo:set-cogniton-value "force" force
   run coglogo:choose-next-plan
   coglogo:report-agent-data
+  ifelse vie < vieTick []
+  [wiggle]
+
+  set vieTick vie
 end
+
 
 to wiggle
   rt random 70
@@ -75,11 +134,11 @@ end
 GRAPHICS-WINDOW
 210
 10
-728
-529
+647
+448
 -1
 -1
-10.0
+13.0
 1
 10
 1
@@ -89,21 +148,21 @@ GRAPHICS-WINDOW
 1
 1
 1
--25
-25
--25
-25
-1
-1
+-16
+16
+-16
+16
+0
+0
 1
 ticks
 30.0
 
 BUTTON
-135
-55
-200
-88
+112
+85
+175
+118
 NIL
 setup
 NIL
@@ -117,25 +176,25 @@ NIL
 1
 
 SLIDER
-5
-90
-195
-123
-population-lumberjacks
-population-lumberjacks
-1
+25
+136
+197
+169
+population
+population
+0
 100
-10.0
+21.0
 1
 1
 NIL
 HORIZONTAL
 
 BUTTON
-5
-55
-68
-88
+41
+84
+104
+117
 NIL
 go
 T
@@ -149,10 +208,10 @@ NIL
 1
 
 BUTTON
-5
-10
-201
-53
+43
+31
+182
+64
 NIL
 coglogo:openEditor
 NIL
@@ -166,123 +225,61 @@ NIL
 1
 
 SLIDER
-5
-255
-195
-288
-max-strength
-max-strength
+26
+185
+198
+218
+force-max
+force-max
 1
 10
-5.0
+10.0
 0.25
 1
 NIL
 HORIZONTAL
 
 SLIDER
-5
-285
-195
-318
-starting-energy
-starting-energy
+28
+227
+200
+260
+vie-depart
+vie-depart
 1
-100
-49.0
+50
+15.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-5
-315
+23
+364
 195
-348
+397
+energie-depart
+energie-depart
+1
+100
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+22
+288
+194
+321
 vision
 vision
 1
 20
-4.0
+8.5
 0.5
-1
-NIL
-HORIZONTAL
-
-BUTTON
-70
-55
-134
-88
-step
-go
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-PLOT
-5
-650
-205
-800
-number of agents
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"humans1" 1.0 0 -2674135 true "" "plot count humans with [groupId = 1]"
-"humans2" 1.0 0 -13345367 true "" "plot count humans with [groupId = 2]"
-
-MONITOR
-205
-700
-282
-745
-NIL
-debugValue
-17
-1
-11
-
-SLIDER
-5
-160
-195
-193
-population-builders
-population-builders
-1
-100
-10.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-5
-125
-195
-158
-population-miners
-population-miners
-1
-100
-10.0
-1
 1
 NIL
 HORIZONTAL
@@ -646,5 +643,5 @@ true
 Line -7500403 true 150 150 90 180
 Line -7500403 true 150 150 210 180
 @#$#@#$#@
-1
+0
 @#$#@#$#@

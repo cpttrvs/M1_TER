@@ -1,9 +1,0 @@
-Le planning a été fait sur le logiciel Gantt Project; le fichier original est donc celui en *.gan (n'ayant pas pu exporter en .pod, une autre version est disponible en .xml pour MS Project, ou en .pdf)
-
-La charge de travail pour le rendu est de 10% pour Arnault, Alexandre et Kiefer, et de 20% pour Joseph (chef de projet)
-
-La période en rose correspond aux vacances d'hiver
-La période en rouge correspond à la semaine de partiels
-
-
-Le sujet du TER : http://www.lirmm.fr/~ferber/TER/metaciv_m1.htm

@@ -1,0 +1,58 @@
+TER : Réunion 1 (26/01/18)
+_
+Plan :
+0 - logistique
+1 - présentation coglogo
+2 - présentation des objectifs principaux
+    a - gestion des messages
+    b - framework d'interactions
+3 - objectifs pour la prochaine réunion
+_
+0 - logistique
+réunion+1 : vendredi 2/01, 16H au LIRMM
+réunion+2 : jeudi 8/01, 9h au LIRMM
+lien du git : https://github.com/suroFr/CogLogo/tree/master/Dists (tout y est expliqué)
+sujet ter : http://www.lirmm.fr/~ferber/TER/metaciv_m1.htm
+_
+1 - présentation coglogo
+tout d'abord, regardez les modèles déjà dans l'archive pour voir le principe des cognitons/culturons et plans
+
+explications brèves :
+un cogniton (les sphères dans le Cogniton Editor) représente une unité de cognition (percept, croyance, etc)
+un culturon est un cogniton de groupe
+un plan est un état/une action (les rectangles)
+un lien relie un cogniton/culturon et un plan
+    lien d'influence : comportement classique
+        exemple : cogniton vaut 5, le lien vaut +2, le plan vaudra 5*(+2)
+    lien conditionnel : si le cogniton est actif, alors le plan existe
+        exemple inverse : le plan est de vendre ses outils, si l'agent n'a pas d'outil (le cogniton est désactivé), le plan de vendre n'existe pas pour cet agent
+    lien de renforcement : la valeur du plan est affecté à un cogniton (feed-back-plan)
+        exemple : je veux combattre, si je gagne, alors ça renforce mon envie de combattre
+
+le decision maker :
+chaque plan a une valeur, pour savoir quelle action effectuer, 3 possibilités
+max : le plan avec la plus grande valeur est prise en compte
+stochastique : voir reunion1_annexe1.jpg (définition linéaire, sans tri)
+par biais : voir reunion1_annexe2.jpg (on influe sur le biais, càd la puissance, avec tri)
+_
+2 - objectifs principaux
+a - gestion des messages
+réfléchir à comment implémenter une gestion de messages (comme Warbot) avec CogLogo et Netlogo
+notes : CogLogo génère des variables cachés dans NetLogo pour y stocker ses id de groupe, mais notre extension ne doit pas être directement dépendante de CogLogo
+    exemple : agentmessage "M" GetID_CogLogo, donc query CogLogo à partir de NetLogo
+
+b - framework d'interactions
+extrait du sujet : implémenter un framework portant sur la defintion de situations d'interactions (échange, commerce, combat, propriété, diffusion culturelle, évolution technologique, création de villes)
+exemple : pour le combat, un agent a un cogniton "Force" (ambiguité avec la définition, un cogniton représente une motivation, ici il est utilisé pour une capacité (un capaciton comme dit François Suro))
+    deux plans : Perdre et Gagner
+    lorsque l'agent A, initiateur (Force : 5) intéragit avec l'agent B, receveur (Force : 2)
+    lien ForceA et Gagner vaut +1, lien ForceA et Perdre vaut -1
+    lien ForceB et Gagner vaut -1, lien ForceB et Perdre vaut +1
+    (puisque l'agent A, initiateur, est gagnant si il a plus de force que l'agent B)
+    Gagner > Perdre, donc l'agent A gagne
+analyse : il faut implémenter la notion de combat en général, et voir les ressemblances qui en ressort avec les autres modèles d'intéractions (commerce, etc)
+    ce qui est commun sera donc nécessaire pour le système d'intéraction, et donc être ajouté à CogLogo
+_
+3 - objectifs pour la prochaine réunion
+chacun doit implémenter un modèle de combat simple afin d'apprendre à manipuler CogLogo et comprendre sa logique (force vs force, gagner perdre, ou plus)
+on mettra en commun ensuite, voir ce qui en ressort de chaque modèle et en discuter avec Ferber et Suro
